@@ -5,6 +5,7 @@ import { CommitDetails } from './components/CommitDetails';
 import { CreatePRModal } from './components/CreatePRModal';
 import { GraphCanvas } from './components/GraphCanvas';
 import { RepoSettingsModal } from './components/RepoSettingsModal';
+import { useResizableSplit } from './hooks/useResizableSplit';
 import { vscode } from './vscode';
 
 interface ContextMenuState {
@@ -109,6 +110,7 @@ export function App() {
     }, []);
 
     const assets = useMemo(() => window.__GITGRAPHOR_ASSETS__ ?? {}, []);
+    const { leftPercent, containerRef, onDividerMouseDown } = useResizableSplit(62);
 
     const handleSelectCommit = (commit: CommitSummary): void => {
         if (!snapshot) {
@@ -201,7 +203,11 @@ export function App() {
 
     return (
         <main className="shell">
-            <section className="layout">
+            <section
+                className="layout"
+                ref={containerRef as React.RefObject<HTMLElement>}
+                style={{ gridTemplateColumns: `${leftPercent}% 5px ${100 - leftPercent}%` }}
+            >
                 <GraphCanvas
                     snapshot={snapshot}
                     selectedCommitHash={selectedCommitHash}
@@ -212,6 +218,7 @@ export function App() {
                     onOpenPR={() => setPrOpen(true)}
                 />
 
+                <div className="resizer" onMouseDown={onDividerMouseDown} />
                 <aside className="sidebar">
                     <CommitDetails detail={selectedCommit} repoRoot={snapshot.repoRoot} onOpenDiff={handleOpenDiff} />
                 </aside>
