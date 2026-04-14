@@ -10,3 +10,4 @@ tsconfig.json
 *.vsix
 .gitignore
 .gitattributes
+dist/**/*.map
