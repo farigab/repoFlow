@@ -2,7 +2,7 @@
 
 **Git Graphor** is a Visual Studio Code extension that brings an interactive Git history graph directly into your editor — with native diff integration and Git actions built in, so you never have to leave VS Code.
 
-![Git Graphor in action](media/gitgraphor.gif)
+![Git Graphor in action](https://raw.githubusercontent.com/farigab/gitgraphor/main/media/gitgraphor.gif)
 
 ## Features
 

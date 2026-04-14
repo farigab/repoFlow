@@ -11,3 +11,4 @@ tsconfig.json
 .gitignore
 .gitattributes
 dist/**/*.map
+media/gitgraphor.gif
