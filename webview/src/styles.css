@@ -218,11 +218,25 @@ select:focus {
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(20rem, 0.95fr);
+  grid-template-columns: minmax(0, 1.55fr) 5px minmax(20rem, 0.95fr);
   gap: 0;
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+.resizer {
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 120ms ease;
+  position: relative;
+  z-index: 10;
+}
+
+.resizer:hover,
+.resizer:active {
+  background: var(--accent);
 }
 
 .sidebar {
@@ -231,7 +245,6 @@ select:focus {
   gap: 0;
   min-height: 0;
   overflow: hidden;
-  border-left: 1px solid var(--panel-border);
 }
 
 .graph {
@@ -718,6 +731,10 @@ select:focus {
 @media (max-width: 1180px) {
   .layout {
     grid-template-columns: 1fr;
+  }
+
+  .resizer {
+    display: none;
   }
 
   .sidebar {
