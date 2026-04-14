@@ -549,6 +549,58 @@ select {
   margin-bottom: 1rem;
 }
 
+.commit-hover-tooltip {
+  position: fixed;
+  z-index: 55;
+  min-width: 16rem;
+  max-width: 26rem;
+  padding: 0.8rem 1rem;
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-left: 3px solid var(--success);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(22px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  animation: fade-up 140ms ease;
+  pointer-events: auto;
+}
+
+.commit-hover-tooltip__title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.commit-hover-tooltip__head-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.commit-hover-tooltip__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.commit-hover-tooltip__label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+
+.commit-hover-tooltip__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
 .context-menu {
   position: fixed;
   z-index: 50;

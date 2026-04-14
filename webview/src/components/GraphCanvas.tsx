@@ -1,5 +1,5 @@
 import type { CSSProperties, MouseEvent } from 'react';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CommitSummary, GraphSnapshot } from '../../../src/core/models/GitModels';
 
 interface GraphCanvasProps {
@@ -8,6 +8,57 @@ interface GraphCanvasProps {
     onSelectCommit: (commit: CommitSummary) => void;
     onOpenContextMenu: (commit: CommitSummary, point: { x: number; y: number }) => void;
     onLoadMore: (limit: number) => void;
+}
+
+interface HoverTooltip {
+    commit: CommitSummary;
+    x: number;
+    y: number;
+}
+
+function CommitHoverTooltip({ data, onEnter, onLeave }: {
+    data: HoverTooltip;
+    onEnter: () => void;
+    onLeave: () => void;
+}) {
+    const branches = data.commit.refs.filter((r) => r.type === 'localBranch' || r.type === 'remoteBranch');
+    const tags = data.commit.refs.filter((r) => r.type === 'tag');
+
+    return (
+        <div
+            className="commit-hover-tooltip"
+            style={{ left: data.x, top: data.y }}
+            onMouseEnter={onEnter}
+            onMouseLeave={onLeave}
+        >
+            <div className="commit-hover-tooltip__title">Commit {data.commit.shortHash}</div>
+            {data.commit.isHead && (
+                <div className="commit-hover-tooltip__head-row">
+                    This commit is included in <span className="ref-pill ref-pill--head">HEAD</span>
+                </div>
+            )}
+            {branches.length > 0 && (
+                <div className="commit-hover-tooltip__section">
+                    <span className="commit-hover-tooltip__label">Branches:</span>
+                    <div className="commit-hover-tooltip__pills">
+                        {branches.map((ref) => (
+                            <span key={ref.name} className={`ref-pill ref-pill--${ref.type}`}>{ref.name}</span>
+                        ))}
+                    </div>
+                </div>
+            )}
+            {tags.length > 0 && (
+                <div className="commit-hover-tooltip__section">
+                    <span className="commit-hover-tooltip__label">Tags:</span>
+                    <div className="commit-hover-tooltip__pills">
+                        {tags.map((ref) => (
+                            <span key={ref.name} className="ref-pill ref-pill--tag">{ref.name}</span>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 }
 
 const PALETTE = ['#22c55e', '#38bdf8', '#f59e0b', '#fb7185', '#a78bfa', '#14b8a6', '#f97316', '#84cc16'];
@@ -33,6 +84,17 @@ export function GraphCanvas({ snapshot, selectedCommitHash, onSelectCommit, onOp
 
     const viewportRef = useRef<HTMLDivElement>(null);
     const loadingRef = useRef(false);
+    const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [hoverTooltip, setHoverTooltip] = useState<HoverTooltip | null>(null);
+
+    const handleNodeMouseEnter = useCallback((event: MouseEvent<SVGGElement>, commit: CommitSummary) => {
+        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+        setHoverTooltip({ commit, x: event.clientX - 80, y: event.clientY + 16 });
+    }, []);
+
+    const handleNodeMouseLeave = useCallback(() => {
+        hoverTimerRef.current = setTimeout(() => setHoverTooltip(null), 100);
+    }, []);
 
     useEffect(() => {
         loadingRef.current = false;
@@ -100,7 +162,14 @@ export function GraphCanvas({ snapshot, selectedCommitHash, onSelectCommit, onOp
         const isSelected = row.commit.hash === selectedCommitHash;
 
         return (
-            <g key={row.commit.hash}>
+            <g
+                key={row.commit.hash}
+                style={{ cursor: 'pointer' }}
+                onClick={() => onSelectCommit(row.commit)}
+                onMouseEnter={(event) => handleNodeMouseEnter(event, row.commit)}
+                onMouseLeave={handleNodeMouseLeave}
+            >
+                <circle cx={x} cy={y} r={12} fill="transparent" />
                 <circle cx={x} cy={y} r={isSelected ? 6 : 4.5} fill={getLaneColor(row.lane)} stroke="#f8fafc" strokeWidth={isSelected ? 2 : 1.5} />
                 {row.commit.isHead ? <circle cx={x} cy={y} r={9} fill="none" stroke="#f8fafc" strokeOpacity={0.75} strokeWidth={1} /> : null}
             </g>
@@ -144,7 +213,6 @@ export function GraphCanvas({ snapshot, selectedCommitHash, onSelectCommit, onOp
                                     className={`graph-row${isSelected ? ' graph-row--selected' : ''}`}
                                     onClick={() => onSelectCommit(row.commit)}
                                     onContextMenu={(event) => handleContextMenu(event, row.commit)}
-                                    title={`${row.commit.subject}\n${row.commit.authorName} · ${new Date(row.commit.authoredAt).toLocaleString()}`}
                                 >
                                     <div className="graph-row__title-line">
                                         <span className="graph-row__subject">{row.commit.subject}</span>
@@ -167,6 +235,14 @@ export function GraphCanvas({ snapshot, selectedCommitHash, onSelectCommit, onOp
                     </div>
                 </div>
             </div>
+
+            {hoverTooltip && (
+                <CommitHoverTooltip
+                    data={hoverTooltip}
+                    onEnter={() => { if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current); }}
+                    onLeave={() => setHoverTooltip(null)}
+                />
+            )}
         </section>
     );
 }
