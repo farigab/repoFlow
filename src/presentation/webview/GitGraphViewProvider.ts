@@ -231,9 +231,106 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
           await this.repository.cherryPick(message.payload.repoRoot, message.payload.commitHash);
         });
         return;
+      case 'revertCommit': {
+        const confirmed = await vscode.window.showWarningMessage(
+          `Reverter o commit ${message.payload.commitHash.slice(0, 8)}?`,
+          { modal: true },
+          'Revert'
+        );
+
+        if (confirmed !== 'Revert') {
+          return;
+        }
+
+        await this.executeRepositoryAction('Revertendo commit...', async () => {
+          await this.repository.revert(message.payload.repoRoot, message.payload.commitHash);
+        });
+        return;
+      }
+      case 'dropCommit': {
+        const confirmed = await vscode.window.showWarningMessage(
+          `Remover (drop) o commit ${message.payload.commitHash.slice(0, 8)}? Esta ação reescreve o histórico.`,
+          { modal: true },
+          'Drop'
+        );
+
+        if (confirmed !== 'Drop') {
+          return;
+        }
+
+        await this.executeRepositoryAction('Removendo commit...', async () => {
+          await this.repository.dropCommit(message.payload.repoRoot, message.payload.commitHash);
+        });
+        return;
+      }
+      case 'mergeCommit': {
+        const confirmed = await vscode.window.showWarningMessage(
+          `Fazer merge do commit ${message.payload.commitHash.slice(0, 8)} na branch atual?`,
+          { modal: true },
+          'Merge'
+        );
+
+        if (confirmed !== 'Merge') {
+          return;
+        }
+
+        await this.executeRepositoryAction('Executando merge...', async () => {
+          await this.repository.merge(message.payload.repoRoot, message.payload.commitHash);
+        });
+        return;
+      }
+      case 'rebaseOnCommit': {
+        const confirmed = await vscode.window.showWarningMessage(
+          `Fazer rebase da branch atual sobre o commit ${message.payload.commitHash.slice(0, 8)}?`,
+          { modal: true },
+          'Rebase'
+        );
+
+        if (confirmed !== 'Rebase') {
+          return;
+        }
+
+        await this.executeRepositoryAction('Executando rebase...', async () => {
+          await this.repository.rebase(message.payload.repoRoot, message.payload.commitHash);
+        });
+        return;
+      }
+      case 'resetToCommit': {
+        const mode = await vscode.window.showQuickPick(
+          [
+            { label: 'Soft', description: 'Mantém alterações no staging', value: 'soft' as const },
+            { label: 'Mixed', description: 'Mantém alterações no working tree', value: 'mixed' as const },
+            { label: 'Hard', description: 'Descarta todas as alterações', value: 'hard' as const }
+          ],
+          { title: `Reset para ${message.payload.commitHash.slice(0, 8)}`, placeHolder: 'Selecione o modo de reset' }
+        );
+
+        if (!mode) {
+          return;
+        }
+
+        const confirmed = await vscode.window.showWarningMessage(
+          `Reset (${mode.label}) da branch atual para ${message.payload.commitHash.slice(0, 8)}?`,
+          { modal: true },
+          'Reset'
+        );
+
+        if (confirmed !== 'Reset') {
+          return;
+        }
+
+        await this.executeRepositoryAction('Executando reset...', async () => {
+          await this.repository.resetTo(message.payload.repoRoot, message.payload.commitHash, mode.value);
+        });
+        return;
+      }
       case 'copyHash':
         await vscode.env.clipboard.writeText(message.payload.hash);
         await this.postNotification('info', 'Hash copiado para a área de transferência.');
+        return;
+      case 'copySubject':
+        await vscode.env.clipboard.writeText(message.payload.subject);
+        await this.postNotification('info', 'Assunto copiado para a área de transferência.');
         return;
       case 'openInTerminal': {
         const hash = message.payload.commitHash;

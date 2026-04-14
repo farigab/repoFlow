@@ -16,7 +16,13 @@ export type WebviewToExtensionMessage =
   | { type: 'mergeBranchPrompt'; payload: { repoRoot: string; branchName: string } }
   | { type: 'checkoutCommit'; payload: { repoRoot: string; commitHash: string } }
   | { type: 'cherryPick'; payload: { repoRoot: string; commitHash: string } }
+  | { type: 'revertCommit'; payload: { repoRoot: string; commitHash: string } }
+  | { type: 'dropCommit'; payload: { repoRoot: string; commitHash: string } }
+  | { type: 'mergeCommit'; payload: { repoRoot: string; commitHash: string } }
+  | { type: 'rebaseOnCommit'; payload: { repoRoot: string; commitHash: string } }
+  | { type: 'resetToCommit'; payload: { repoRoot: string; commitHash: string } }
   | { type: 'copyHash'; payload: { hash: string } }
+  | { type: 'copySubject'; payload: { subject: string } }
   | { type: 'openInTerminal'; payload: { repoRoot: string; commitHash: string } }
   | { type: 'stageFile'; payload: { repoRoot: string; file: WorkingTreeFile } }
   | { type: 'unstageFile'; payload: { repoRoot: string; file: WorkingTreeFile } }

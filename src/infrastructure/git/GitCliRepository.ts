@@ -280,6 +280,31 @@ export class GitCliRepository implements GitRepository {
     this.graphCache.clear();
   }
 
+  public async addTag(repoRoot: string, name: string, commitHash: string): Promise<void> {
+    await this.runGit(repoRoot, ['tag', name, commitHash]);
+    this.graphCache.clear();
+  }
+
+  public async revert(repoRoot: string, commitHash: string): Promise<void> {
+    await this.runGit(repoRoot, ['revert', '--no-edit', commitHash]);
+    this.graphCache.clear();
+  }
+
+  public async dropCommit(repoRoot: string, commitHash: string): Promise<void> {
+    await this.runGit(repoRoot, ['rebase', '--onto', `${commitHash}^`, commitHash]);
+    this.graphCache.clear();
+  }
+
+  public async rebase(repoRoot: string, onto: string): Promise<void> {
+    await this.runGit(repoRoot, ['rebase', onto]);
+    this.graphCache.clear();
+  }
+
+  public async resetTo(repoRoot: string, commitHash: string, mode: 'soft' | 'mixed' | 'hard'): Promise<void> {
+    await this.runGit(repoRoot, ['reset', `--${mode}`, commitHash]);
+    this.graphCache.clear();
+  }
+
   public async openDiff(request: DiffRequest): Promise<void> {
     await this.openDiffHandler(request);
   }

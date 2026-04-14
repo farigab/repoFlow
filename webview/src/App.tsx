@@ -134,23 +134,41 @@ export function App() {
         vscode.postMessage({ type: 'openDiff', payload: request });
     };
 
-    const handleContextAction = (action: 'checkout' | 'cherryPick' | 'createBranch' | 'copyHash' | 'openTerminal'): void => {
+    const handleContextAction = (action: 'checkout' | 'cherryPick' | 'revert' | 'drop' | 'createBranch' | 'merge' | 'rebase' | 'reset' | 'copyHash' | 'copySubject' | 'openTerminal'): void => {
         if (!snapshot || !contextMenu) {
             return;
         }
 
         switch (action) {
+            case 'createBranch':
+                vscode.postMessage({ type: 'createBranchPrompt', payload: { repoRoot: snapshot.repoRoot, fromRef: contextMenu.commit.hash } });
+                break;
             case 'checkout':
                 vscode.postMessage({ type: 'checkoutCommit', payload: { repoRoot: snapshot.repoRoot, commitHash: contextMenu.commit.hash } });
                 break;
             case 'cherryPick':
                 vscode.postMessage({ type: 'cherryPick', payload: { repoRoot: snapshot.repoRoot, commitHash: contextMenu.commit.hash } });
                 break;
-            case 'createBranch':
-                vscode.postMessage({ type: 'createBranchPrompt', payload: { repoRoot: snapshot.repoRoot, fromRef: contextMenu.commit.hash } });
+            case 'revert':
+                vscode.postMessage({ type: 'revertCommit', payload: { repoRoot: snapshot.repoRoot, commitHash: contextMenu.commit.hash } });
+                break;
+            case 'drop':
+                vscode.postMessage({ type: 'dropCommit', payload: { repoRoot: snapshot.repoRoot, commitHash: contextMenu.commit.hash } });
+                break;
+            case 'merge':
+                vscode.postMessage({ type: 'mergeCommit', payload: { repoRoot: snapshot.repoRoot, commitHash: contextMenu.commit.hash } });
+                break;
+            case 'rebase':
+                vscode.postMessage({ type: 'rebaseOnCommit', payload: { repoRoot: snapshot.repoRoot, commitHash: contextMenu.commit.hash } });
+                break;
+            case 'reset':
+                vscode.postMessage({ type: 'resetToCommit', payload: { repoRoot: snapshot.repoRoot, commitHash: contextMenu.commit.hash } });
                 break;
             case 'copyHash':
                 vscode.postMessage({ type: 'copyHash', payload: { hash: contextMenu.commit.hash } });
+                break;
+            case 'copySubject':
+                vscode.postMessage({ type: 'copySubject', payload: { subject: contextMenu.commit.subject } });
                 break;
             case 'openTerminal':
                 vscode.postMessage({
@@ -196,19 +214,37 @@ export function App() {
             {contextMenu ? (
                 <div className="context-menu" style={{ left: contextMenu.x, top: contextMenu.y }}>
                     <button type="button" onClick={() => handleContextAction('checkout')}>
-                        Checkout Commit
-                    </button>
-                    <button type="button" onClick={() => handleContextAction('cherryPick')}>
-                        Cherry-pick
+                        Checkout...
                     </button>
                     <button type="button" onClick={() => handleContextAction('createBranch')}>
-                        Create Branch From Commit
+                        Create Branch...
                     </button>
+                    <div className="context-menu__separator" />
+                    <button type="button" onClick={() => handleContextAction('cherryPick')}>
+                        Cherry Pick...
+                    </button>
+                    <button type="button" onClick={() => handleContextAction('revert')}>
+                        Revert...
+                    </button>
+                    <button type="button" onClick={() => handleContextAction('drop')}>
+                        Drop...
+                    </button>
+                    <div className="context-menu__separator" />
+                    <button type="button" onClick={() => handleContextAction('merge')}>
+                        Merge into current branch...
+                    </button>
+                    <button type="button" onClick={() => handleContextAction('rebase')}>
+                        Rebase current branch on this Commit...
+                    </button>
+                    <button type="button" onClick={() => handleContextAction('reset')}>
+                        Reset current branch to this Commit...
+                    </button>
+                    <div className="context-menu__separator" />
                     <button type="button" onClick={() => handleContextAction('copyHash')}>
-                        Copy Hash
+                        Copy Commit Hash to Clipboard
                     </button>
-                    <button type="button" onClick={() => handleContextAction('openTerminal')}>
-                        Open In Terminal
+                    <button type="button" onClick={() => handleContextAction('copySubject')}>
+                        Copy Commit Subject to Clipboard
                     </button>
                 </div>
             ) : null}

@@ -26,5 +26,10 @@ export interface GitRepository {
   pull(repoRoot: string): Promise<void>;
   push(repoRoot: string): Promise<void>;
   cherryPick(repoRoot: string, commitHash: string): Promise<void>;
+  addTag(repoRoot: string, name: string, commitHash: string): Promise<void>;
+  revert(repoRoot: string, commitHash: string): Promise<void>;
+  dropCommit(repoRoot: string, commitHash: string): Promise<void>;
+  rebase(repoRoot: string, onto: string): Promise<void>;
+  resetTo(repoRoot: string, commitHash: string, mode: 'soft' | 'mixed' | 'hard'): Promise<void>;
   openDiff(request: DiffRequest): Promise<void>;
 }
