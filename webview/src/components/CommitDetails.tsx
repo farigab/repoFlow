@@ -41,7 +41,7 @@ export function CommitDetails({ detail, onOpenDiff }: CommitDetailsProps) {
                 <div className="details__meta-grid">
                     <div>
                         <span>Hash</span>
-                        <strong>{detail.hash}</strong>
+                        <strong title={detail.hash}>{detail.hash.slice(0, 8)}</strong>
                     </div>
                     <div>
                         <span>Author</span>
@@ -54,7 +54,9 @@ export function CommitDetails({ detail, onOpenDiff }: CommitDetailsProps) {
                     <div>
                         <span>Stats</span>
                         <strong>
-                            +{detail.stats.additions} / -{detail.stats.deletions} / {detail.stats.filesChanged} files
+                            <span className="file-card__stats--add">+{detail.stats.additions}</span>
+                            {' '}<span className="file-card__stats--del">−{detail.stats.deletions}</span>
+                            {' · '}{detail.stats.filesChanged}f
                         </strong>
                     </div>
                 </div>
@@ -65,15 +67,15 @@ export function CommitDetails({ detail, onOpenDiff }: CommitDetailsProps) {
             <div className="details__files">
                 {detail.files.map((file) => (
                     <button key={`${detail.hash}-${file.path}`} type="button" className="file-card" onClick={() => onOpenDiff(file, detail)}>
-                        <div className="file-card__path">
-                            <span className={`status-badge status-badge--${file.status.toLowerCase()}`}>{file.status}</span>
+                        <span className={`status-badge status-badge--${file.status.toLowerCase()}`}>{file.status}</span>
+                        <span className="file-card__path">
+                            {file.originalPath ? <span className="file-card__rename">{file.originalPath} → </span> : null}
                             <strong>{file.path}</strong>
-                        </div>
-                        {file.originalPath ? <div className="file-card__rename">from {file.originalPath}</div> : null}
-                        <div className="file-card__stats">
+                        </span>
+                        <span className="file-card__stats">
                             <span className="file-card__stats--add">+{file.additions}</span>
-                            <span className="file-card__stats--del">-{file.deletions}</span>
-                        </div>
+                            <span className="file-card__stats--del">−{file.deletions}</span>
+                        </span>
                     </button>
                 ))}
             </div>

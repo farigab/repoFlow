@@ -26,9 +26,9 @@ function getLaneColor(lane: number): string {
 }
 
 export function GraphCanvas({ snapshot, selectedCommitHash, onSelectCommit, onOpenContextMenu, onLoadMore }: GraphCanvasProps) {
-    const rowHeight = 54;
-    const laneGap = 26;
-    const graphWidth = Math.max(140, 72 + (snapshot.maxLane + 1) * laneGap);
+    const rowHeight = 40;
+    const laneGap = 20;
+    const graphWidth = Math.max(110, 52 + (snapshot.maxLane + 1) * laneGap);
     const totalHeight = snapshot.rows.length * rowHeight;
 
     const viewportRef = useRef<HTMLDivElement>(null);
@@ -86,8 +86,8 @@ export function GraphCanvas({ snapshot, selectedCommitHash, onSelectCommit, onOp
                     d={path}
                     fill="none"
                     stroke={getLaneColor(connection.lane)}
-                    strokeOpacity={0.9}
-                    strokeWidth={2.5}
+                    strokeOpacity={0.85}
+                    strokeWidth={1.5}
                     strokeLinecap="round"
                 />
             );
@@ -101,8 +101,8 @@ export function GraphCanvas({ snapshot, selectedCommitHash, onSelectCommit, onOp
 
         return (
             <g key={row.commit.hash}>
-                <circle cx={x} cy={y} r={isSelected ? 9 : 7} fill={getLaneColor(row.lane)} stroke="#f8fafc" strokeWidth={isSelected ? 3 : 2} />
-                {row.commit.isHead ? <circle cx={x} cy={y} r={12} fill="none" stroke="#f8fafc" strokeOpacity={0.8} strokeWidth={1.5} /> : null}
+                <circle cx={x} cy={y} r={isSelected ? 6 : 4.5} fill={getLaneColor(row.lane)} stroke="#f8fafc" strokeWidth={isSelected ? 2 : 1.5} />
+                {row.commit.isHead ? <circle cx={x} cy={y} r={9} fill="none" stroke="#f8fafc" strokeOpacity={0.75} strokeWidth={1} /> : null}
             </g>
         );
     });
