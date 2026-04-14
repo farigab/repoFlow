@@ -18,6 +18,101 @@ function formatFullDate(input: string): string {
     return fullDateFormatter.format(new Date(input));
 }
 
+// ── File-tree helpers ──────────────────────────────────────────────────────────
+
+interface DirNode {
+    children: Map<string, DirNode>;
+    files: CommitFileChange[];
+}
+
+function buildTree(files: CommitFileChange[]): DirNode {
+    const root: DirNode = { children: new Map(), files: [] };
+    for (const file of files) {
+        const segments = file.path.split('/');
+        let node = root;
+        for (let i = 0; i < segments.length - 1; i++) {
+            const seg = segments[i];
+            if (!node.children.has(seg)) {
+                node.children.set(seg, { children: new Map(), files: [] });
+            }
+            node = node.children.get(seg)!;
+        }
+        node.files.push(file);
+    }
+    return root;
+}
+
+interface FolderGroupProps {
+    labelParts: string[];
+    node: DirNode;
+    depth: number;
+    detail: CommitDetail;
+    onOpenDiff: (file: CommitFileChange, detail: CommitDetail) => void;
+}
+
+function FolderGroup({ labelParts, node, depth, detail, onOpenDiff }: FolderGroupProps) {
+    // Path compression: collapse single-child-dir nodes that have no direct files
+    if (node.files.length === 0 && node.children.size === 1) {
+        const [childName, childNode] = [...node.children.entries()][0];
+        return (
+            <FolderGroup
+                labelParts={[...labelParts, childName]}
+                node={childNode}
+                depth={depth}
+                detail={detail}
+                onOpenDiff={onOpenDiff}
+            />
+        );
+    }
+
+    const label = labelParts.join(' / ');
+    const groupClass = depth === 0 ? 'tree-group' : 'tree-subgroup';
+
+    return (
+        <div className={groupClass}>
+            {label && (
+                <span className="tree-folder">
+                    <i className="codicon codicon-folder" aria-hidden="true" />
+                    {label}
+                </span>
+            )}
+            {node.files.map((file) => {
+                const filename = file.path.split('/').at(-1) ?? file.path;
+                const origFilename = file.originalPath ? (file.originalPath.split('/').at(-1) ?? file.originalPath) : null;
+                return (
+                    <button
+                        key={`${detail.hash}-${file.path}`}
+                        type="button"
+                        className="file-card"
+                        onClick={() => onOpenDiff(file, detail)}
+                    >
+                        <i className="codicon codicon-file" aria-hidden="true" />
+                        <span className={`status-badge status-badge--${file.status.toLowerCase()}`}>{file.status}</span>
+                        <span className="file-card__path">
+                            {origFilename ? <span className="file-card__rename">{origFilename} → </span> : null}
+                            <strong>{filename}</strong>
+                        </span>
+                        <span className="file-card__stats">
+                            <span className="file-card__stats--add">+{file.additions}</span>
+                            <span className="file-card__stats--del">−{file.deletions}</span>
+                        </span>
+                    </button>
+                );
+            })}
+            {[...node.children.entries()].map(([name, child]) => (
+                <FolderGroup
+                    key={name}
+                    labelParts={[name]}
+                    node={child}
+                    depth={depth + 1}
+                    detail={detail}
+                    onOpenDiff={onOpenDiff}
+                />
+            ))}
+        </div>
+    );
+}
+
 export function CommitDetails({ detail, onOpenDiff }: CommitDetailsProps) {
     if (!detail) {
         return (
@@ -67,19 +162,41 @@ export function CommitDetails({ detail, onOpenDiff }: CommitDetailsProps) {
             {detail.body ? <pre className="details__body">{detail.body}</pre> : null}
 
             <div className="details__files">
-                {detail.files.map((file) => (
-                    <button key={`${detail.hash}-${file.path}`} type="button" className="file-card" onClick={() => onOpenDiff(file, detail)}>
-                        <span className={`status-badge status-badge--${file.status.toLowerCase()}`}>{file.status}</span>
-                        <span className="file-card__path">
-                            {file.originalPath ? <span className="file-card__rename">{file.originalPath} → </span> : null}
-                            <strong>{file.path}</strong>
-                        </span>
-                        <span className="file-card__stats">
-                            <span className="file-card__stats--add">+{file.additions}</span>
-                            <span className="file-card__stats--del">−{file.deletions}</span>
-                        </span>
-                    </button>
-                ))}
+                {(() => {
+                    const tree = buildTree(detail.files);
+                    return (
+                        <>
+                            {tree.files.map((file) => {
+                                const filename = file.path.split('/').at(-1) ?? file.path;
+                                const origFilename = file.originalPath ? (file.originalPath.split('/').at(-1) ?? file.originalPath) : null;
+                                return (
+                                    <button key={`${detail.hash}-${file.path}`} type="button" className="file-card" onClick={() => onOpenDiff(file, detail)}>
+                                        <i className="codicon codicon-file" aria-hidden="true" />
+                                        <span className={`status-badge status-badge--${file.status.toLowerCase()}`}>{file.status}</span>
+                                        <span className="file-card__path">
+                                            {origFilename ? <span className="file-card__rename">{origFilename} → </span> : null}
+                                            <strong>{filename}</strong>
+                                        </span>
+                                        <span className="file-card__stats">
+                                            <span className="file-card__stats--add">+{file.additions}</span>
+                                            <span className="file-card__stats--del">−{file.deletions}</span>
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                            {[...tree.children.entries()].map(([name, child]) => (
+                                <FolderGroup
+                                    key={name}
+                                    labelParts={[name]}
+                                    node={child}
+                                    depth={0}
+                                    detail={detail}
+                                    onOpenDiff={onOpenDiff}
+                                />
+                            ))}
+                        </>
+                    );
+                })()}
             </div>
         </section>
     );

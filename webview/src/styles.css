@@ -417,11 +417,57 @@ select:focus {
   color: color-mix(in srgb, var(--text) 86%, white 14%);
 }
 
-.details__files,
+.details__files {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem 0.75rem;
+}
+
 .changes__list {
   display: grid;
   gap: 0.3rem;
   padding: 0.6rem 0.75rem 0.75rem;
+}
+
+/* ── File-tree hierarchy ──────────────────────────────────────── */
+
+.tree-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.tree-subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding-left: 0.85rem;
+  margin-top: 0.15rem;
+}
+
+.tree-folder {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.4;
+  user-select: none;
+  padding: 0.1rem 0 0.05rem;
+}
+
+.tree-folder .codicon {
+  color: var(--vscode-symbolIcon-folderForeground, var(--warning));
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.file-card .codicon {
+  color: var(--vscode-symbolIcon-fileForeground, var(--muted));
+  font-size: 0.9rem;
+  flex-shrink: 0;
 }
 
 .file-card,

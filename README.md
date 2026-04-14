@@ -48,7 +48,7 @@ Right-click any commit to: checkout, cherry-pick, create a branch from it, copy 
 ## Commands
 
 | Command | Description |
-|---|---|
+| --- | --- |
 | `Git Graphor: Open Graph` | Opens the Git Graphor panel |
 | `Git Graphor: Refresh` | Reloads the graph |
 | `Git Graphor: Fetch` | Fetches from remote |

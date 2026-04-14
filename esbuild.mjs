@@ -45,7 +45,10 @@ const webviewContext = watch
       platform: 'browser',
       format: 'esm',
       loader: {
-        '.css': 'css'
+        '.css': 'css',
+        '.ttf': 'dataurl',
+        '.woff': 'dataurl',
+        '.woff2': 'dataurl'
       },
       watch: {
         onRebuild(error) {
@@ -65,7 +68,10 @@ const webviewContext = watch
       platform: 'browser',
       format: 'esm',
       loader: {
-        '.css': 'css'
+        '.css': 'css',
+        '.ttf': 'dataurl',
+        '.woff': 'dataurl',
+        '.woff2': 'dataurl'
       }
     });
 
