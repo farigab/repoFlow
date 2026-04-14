@@ -1,0 +1,139 @@
+{
+  "name": "gitgraphor",
+  "displayName": "Git Graphor",
+  "description": "Interactive Git graph explorer for Visual Studio Code with native diff integration.",
+  "version": "0.1.0",
+  "publisher": "local-dev",
+  "license": "MIT",
+  "type": "commonjs",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "git",
+    "graph",
+    "commits",
+    "history",
+    "diff",
+    "branches"
+  ],
+  "icon": "media/icon.svg",
+  "main": "./dist/extension.js",
+  "files": [
+    "dist",
+    "media",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "gitGraphor.openView",
+        "title": "Git Graphor: Open Graph",
+        "icon": {
+          "light": "media/icon-mono-light.svg",
+          "dark": "media/icon-mono.svg"
+        }
+      },
+      {
+        "command": "gitGraphor.refresh",
+        "title": "Git Graphor: Refresh"
+      },
+      {
+        "command": "gitGraphor.fetch",
+        "title": "Git Graphor: Fetch"
+      },
+      {
+        "command": "gitGraphor.pull",
+        "title": "Git Graphor: Pull"
+      },
+      {
+        "command": "gitGraphor.push",
+        "title": "Git Graphor: Push"
+      },
+      {
+        "command": "gitGraphor.createBranch",
+        "title": "Git Graphor: Create Branch"
+      },
+      {
+        "command": "gitGraphor.commitChanges",
+        "title": "Git Graphor: Commit Changes"
+      }
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "gitGraphor.openView",
+          "group": "navigation@2"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "gitGraphor.refresh",
+          "when": "view == gitGraphor.graphView",
+          "group": "navigation"
+        },
+        {
+          "command": "gitGraphor.fetch",
+          "when": "view == gitGraphor.graphView",
+          "group": "navigation@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "gitGraphor.openView"
+        },
+        {
+          "command": "gitGraphor.refresh"
+        },
+        {
+          "command": "gitGraphor.fetch"
+        },
+        {
+          "command": "gitGraphor.pull"
+        },
+        {
+          "command": "gitGraphor.push"
+        },
+        {
+          "command": "gitGraphor.createBranch"
+        },
+        {
+          "command": "gitGraphor.commitChanges"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node ./esbuild.mjs",
+    "compile": "npm run build",
+    "watch": "node ./esbuild.mjs --watch",
+    "typecheck": "tsc -p ./tsconfig.json --noEmit",
+    "lint": "eslint . --ext .ts,.tsx",
+    "pretest": "tsc -p ./tsconfig.json --outDir out-test",
+    "test": "node --test out-test/src/test/buildGraphRows.test.js out-test/src/test/gitParsers.test.js"
+  },
+  "dependencies": {
+    "d3": "^7.9.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/vscode": "^1.115.0",
+    "@typescript-eslint/eslint-plugin": "^8.58.2",
+    "@typescript-eslint/parser": "^8.58.2",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.28.0",
+    "eslint": "^10.2.0",
+    "typescript": "^6.0.2"
+  }
+}

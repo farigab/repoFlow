@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "moduleResolution": "Node16",
+    "rootDir": ".",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "resolveJsonModule": true,
+    "types": [
+      "node",
+      "vscode"
+    ]
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.d.ts",
+    "webview/src/**/*.ts",
+    "webview/src/**/*.tsx",
+    "webview/src/**/*.d.ts"
+  ],
+  "exclude": [
+    "dist",
+    "out-test",
+    "node_modules"
+  ]
+}

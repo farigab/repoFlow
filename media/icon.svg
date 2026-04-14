@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
+    <!-- Background -->
+    <rect width="128" height="128" rx="22" fill="#0D1117" />
+
+    <!-- Main branch vertical line -->
+    <line x1="38" y1="22" x2="38" y2="106" stroke="#388BFD" stroke-width="5.5"
+        stroke-linecap="round" />
+
+    <!-- Feature branch: diverge at y=50, node at x=90 y=78, merge at y=106 -->
+    <path d="M38 50 C38 66 90 62 90 78" stroke="#3FB950" stroke-width="5.5" stroke-linecap="round"
+        fill="none" />
+    <path d="M90 78 C90 94 38 90 38 106" stroke="#3FB950" stroke-width="5.5" stroke-linecap="round"
+        fill="none" />
+
+    <!-- Top commit (main) -->
+    <circle cx="38" cy="22" r="9" fill="#388BFD" />
+    <circle cx="38" cy="22" r="4.5" fill="#0D1117" />
+
+    <!-- Diverge commit (main) -->
+    <circle cx="38" cy="50" r="9" fill="#388BFD" />
+    <circle cx="38" cy="50" r="4.5" fill="#0D1117" />
+
+    <!-- Feature branch commit -->
+    <circle cx="90" cy="78" r="9" fill="#3FB950" />
+    <circle cx="90" cy="78" r="4.5" fill="#0D1117" />
+
+    <!-- Merge commit (purple) -->
+    <circle cx="38" cy="106" r="9" fill="#8957E5" />
+    <circle cx="38" cy="106" r="4.5" fill="#0D1117" />
+</svg>
