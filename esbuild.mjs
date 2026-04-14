@@ -5,6 +5,7 @@ const watch = process.argv.includes('--watch');
 const sharedOptions = {
   bundle: true,
   sourcemap: watch,
+  minify: !watch,
   logLevel: 'info',
   legalComments: 'none'
 };
