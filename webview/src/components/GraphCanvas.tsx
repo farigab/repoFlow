@@ -10,6 +10,7 @@ interface GraphCanvasProps {
     onLoadMore: (limit: number) => void;
     onOpenSettings: () => void;
     onOpenPR: () => void;
+    onOpenDeleteBranches: () => void;
 }
 
 interface HoverTooltip {
@@ -98,7 +99,7 @@ function getLaneColor(lane: number): string {
     return PALETTE[lane % PALETTE.length];
 }
 
-export function GraphCanvas({ snapshot, selectedCommitHash, onSelectCommit, onOpenContextMenu, onLoadMore, onOpenSettings, onOpenPR }: GraphCanvasProps) {
+export function GraphCanvas({ snapshot, selectedCommitHash, onSelectCommit, onOpenContextMenu, onLoadMore, onOpenSettings, onOpenPR, onOpenDeleteBranches }: GraphCanvasProps) {
     const rowHeight = 40;
     const laneGap = 20;
     const graphWidth = Math.max(110, 52 + (snapshot.maxLane + 1) * laneGap);
@@ -219,6 +220,15 @@ export function GraphCanvas({ snapshot, selectedCommitHash, onSelectCommit, onOp
                         aria-label="Create Pull Request"
                     >
                         <i className="codicon codicon-git-pull-request-create" aria-hidden="true" />
+                    </button>
+                    <button
+                        type="button"
+                        className="panel__settings-btn"
+                        onClick={onOpenDeleteBranches}
+                        title="Delete Local Branches"
+                        aria-label="Delete Local Branches"
+                    >
+                        <i className="codicon codicon-trash" aria-hidden="true" />
                     </button>
                     <button
                         type="button"

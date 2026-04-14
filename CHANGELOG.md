@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0 - 2026-04-14
+
+- Add delete local branches modal with multi-select capabilities.
+- Interactive branch selection with "Select All" toggle.
+- Two-step confirmation to prevent accidental deletions.
+- Delete branches button in the commit graph header.
+
 ## 1.0.0 - 2026-04-14
 
 - First stable release of Git Graphor.

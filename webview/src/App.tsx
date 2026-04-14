@@ -3,6 +3,7 @@ import type { CommitDetail, CommitFileChange, CommitSummary, DiffRequest, GraphF
 import type { ExtensionToWebviewMessage } from '../../src/shared/protocol';
 import { CommitDetails } from './components/CommitDetails';
 import { CreatePRModal } from './components/CreatePRModal';
+import { DeleteBranchesModal } from './components/DeleteBranchesModal';
 import { GraphCanvas } from './components/GraphCanvas';
 import { RepoSettingsModal } from './components/RepoSettingsModal';
 import { useResizableSplit } from './hooks/useResizableSplit';
@@ -33,6 +34,7 @@ export function App() {
     const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [prOpen, setPrOpen] = useState(false);
+    const [deleteBranchesOpen, setDeleteBranchesOpen] = useState(false);
 
     const deferredFilters = {
         ...filters,
@@ -216,6 +218,7 @@ export function App() {
                     onLoadMore={(limit) => vscode.postMessage({ type: 'loadMore', payload: { limit } })}
                     onOpenSettings={() => setSettingsOpen(true)}
                     onOpenPR={() => setPrOpen(true)}
+                    onOpenDeleteBranches={() => setDeleteBranchesOpen(true)}
                 />
 
                 <div className="resizer" onMouseDown={onDividerMouseDown} />
@@ -276,6 +279,12 @@ export function App() {
                 <CreatePRModal
                     snapshot={snapshot}
                     onClose={() => setPrOpen(false)}
+                />
+            ) : null}
+            {deleteBranchesOpen && snapshot ? (
+                <DeleteBranchesModal
+                    snapshot={snapshot}
+                    onClose={() => setDeleteBranchesOpen(false)}
                 />
             ) : null}
         </main>
