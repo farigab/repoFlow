@@ -155,7 +155,7 @@ export function App() {
             case 'openTerminal':
                 vscode.postMessage({
                     type: 'openInTerminal',
-                    payload: { repoRoot: snapshot.repoRoot, command: `git show --stat ${contextMenu.commit.hash}` }
+                    payload: { repoRoot: snapshot.repoRoot, commitHash: contextMenu.commit.hash }
                 });
                 break;
             default:

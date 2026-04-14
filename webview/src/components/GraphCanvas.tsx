@@ -81,13 +81,15 @@ function CommitHoverTooltip({ data, onEnter, onLeave }: {
 
 const PALETTE = ['#22c55e', '#38bdf8', '#f59e0b', '#fb7185', '#a78bfa', '#14b8a6', '#f97316', '#84cc16'];
 
+const shortDateFormatter = new Intl.DateTimeFormat(undefined, {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
+});
+
 function formatDate(input: string): string {
-    return new Intl.DateTimeFormat(undefined, {
-        day: '2-digit',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit'
-    }).format(new Date(input));
+    return shortDateFormatter.format(new Date(input));
 }
 
 function getLaneColor(lane: number): string {

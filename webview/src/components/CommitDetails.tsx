@@ -6,14 +6,16 @@ interface CommitDetailsProps {
     onOpenDiff: (file: CommitFileChange, detail: CommitDetail) => void;
 }
 
+const fullDateFormatter = new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+});
+
 function formatFullDate(input: string): string {
-    return new Intl.DateTimeFormat(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    }).format(new Date(input));
+    return fullDateFormatter.format(new Date(input));
 }
 
 export function CommitDetails({ detail, onOpenDiff }: CommitDetailsProps) {

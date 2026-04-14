@@ -4,8 +4,7 @@ import type { DiffRequest } from './core/models/GitModels';
 import { GitCliRepository } from './infrastructure/git/GitCliRepository';
 import { GitContentProvider } from './presentation/diff/GitContentProvider';
 import { GitGraphViewProvider } from './presentation/webview/GitGraphViewProvider';
-
-const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+import { EMPTY_TREE } from './shared/constants';
 
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel('Git Graphor');

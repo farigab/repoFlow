@@ -10,7 +10,8 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
   private currentPanel?: vscode.WebviewPanel;
   private currentView?: vscode.WebviewView;
-  private disposables: vscode.Disposable[] = [];
+  private viewDisposables: vscode.Disposable[] = [];
+  private panelDisposables: vscode.Disposable[] = [];
   private filters: GraphFilters = {
     includeRemotes: true,
     limit: 200
@@ -43,18 +44,20 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage(
       (message: WebviewToExtensionMessage) => { void this.handleMessage(message); },
       undefined,
-      this.disposables
+      this.viewDisposables
     );
 
     webviewView.onDidDispose(() => {
       this.currentView = undefined;
-    }, undefined, this.disposables);
+      for (const d of this.viewDisposables) { d.dispose(); }
+      this.viewDisposables = [];
+    }, undefined, this.viewDisposables);
 
     webviewView.onDidChangeVisibility(() => {
       if (webviewView.visible) {
         void this.refresh();
       }
-    }, undefined, this.disposables);
+    }, undefined, this.viewDisposables);
 
     void this.refresh();
   }
@@ -85,14 +88,14 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     panel.webview.onDidReceiveMessage(
       (message: WebviewToExtensionMessage) => { void this.handleMessage(message); },
       undefined,
-      this.disposables
+      this.panelDisposables
     );
 
     panel.onDidDispose(() => {
       this.currentPanel = undefined;
-      for (const d of this.disposables) { d.dispose(); }
-      this.disposables = [];
-    }, undefined, this.disposables);
+      for (const d of this.panelDisposables) { d.dispose(); }
+      this.panelDisposables = [];
+    }, undefined, this.panelDisposables);
 
     this.currentPanel = panel;
     void this.refresh();
@@ -233,9 +236,14 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
         await this.postNotification('info', 'Hash copiado para a área de transferência.');
         return;
       case 'openInTerminal': {
+        const hash = message.payload.commitHash;
+        if (!/^[0-9a-f]{4,40}$/i.test(hash)) {
+          await this.postNotification('error', 'Hash de commit inválido.');
+          return;
+        }
         const terminal = vscode.window.createTerminal({ cwd: message.payload.repoRoot, name: 'Git Graphor' });
         terminal.show();
-        terminal.sendText(message.payload.command, true);
+        terminal.sendText(`git show --stat ${hash}`, true);
         return;
       }
       case 'stageFile':
@@ -316,7 +324,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async postMessage(message: ExtensionToWebviewMessage): Promise<void> {
-    const sends: Array<Promise<boolean>> = [];
+    const sends: Array<Thenable<boolean>> = [];
     if (this.currentView?.visible) {
       sends.push(this.currentView.webview.postMessage(message));
     }

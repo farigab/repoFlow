@@ -13,6 +13,7 @@ import type {
     WorkingTreeStatus
 } from '../../core/models/GitModels';
 import type { GitRepository } from '../../core/ports/GitRepository';
+import { EMPTY_TREE } from '../../shared/constants';
 import { GitCache } from './GitCache';
 import {
     parseBranchList,
@@ -23,7 +24,6 @@ import {
 } from './GitParsers';
 
 const execFileAsync = promisify(execFile);
-const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 
 function escapePathSpec(filePath: string): string {
   return filePath.replace(/\\/g, '/');
@@ -204,7 +204,8 @@ export class GitCliRepository implements GitRepository {
 
     try {
       return await this.runGit(repoRoot, ['show', `${ref}:${escapePathSpec(targetPath)}`]);
-    } catch {
+    } catch (error) {
+      this.output.appendLine(`[readBlob] ${ref}:${targetPath} — ${error instanceof Error ? error.message : String(error)}`);
       return '';
     }
   }

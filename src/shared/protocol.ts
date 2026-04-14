@@ -17,7 +17,7 @@ export type WebviewToExtensionMessage =
   | { type: 'checkoutCommit'; payload: { repoRoot: string; commitHash: string } }
   | { type: 'cherryPick'; payload: { repoRoot: string; commitHash: string } }
   | { type: 'copyHash'; payload: { hash: string } }
-  | { type: 'openInTerminal'; payload: { repoRoot: string; command: string } }
+  | { type: 'openInTerminal'; payload: { repoRoot: string; commitHash: string } }
   | { type: 'stageFile'; payload: { repoRoot: string; file: WorkingTreeFile } }
   | { type: 'unstageFile'; payload: { repoRoot: string; file: WorkingTreeFile } }
   | { type: 'discardFile'; payload: { repoRoot: string; file: WorkingTreeFile } }

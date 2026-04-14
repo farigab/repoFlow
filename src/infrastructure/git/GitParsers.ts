@@ -86,15 +86,29 @@ export function parseBranchList(raw: string): BranchSummary[] {
 }
 
 function parseStatusLine(line: string): WorkingTreeFile | undefined {
-  if (line.startsWith('1 ') || line.startsWith('2 ')) {
+  // Porcelain v2 ordinary entry: 1 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <path>
+  if (line.startsWith('1 ')) {
     const parts = line.split(' ');
     const xy = parts[1] ?? '..';
-    const pathSegment = line.split('\t');
-    const path = pathSegment[pathSegment.length - 1] ?? '';
-    const originalPath = line.startsWith('2 ') ? pathSegment[pathSegment.length - 2] : undefined;
+    const filePath = parts.slice(8).join(' ');
 
     return {
-      path,
+      path: filePath,
+      indexStatus: xy[0] ?? '.',
+      workTreeStatus: xy[1] ?? '.',
+      conflicted: false
+    };
+  }
+
+  // Porcelain v2 rename/copy: 2 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <Xscore> <path>\t<origPath>
+  if (line.startsWith('2 ')) {
+    const parts = line.split(' ');
+    const xy = parts[1] ?? '..';
+    const rest = parts.slice(9).join(' ');
+    const [filePath, originalPath] = rest.split('\t');
+
+    return {
+      path: filePath,
       originalPath,
       indexStatus: xy[0] ?? '.',
       workTreeStatus: xy[1] ?? '.',
@@ -102,13 +116,14 @@ function parseStatusLine(line: string): WorkingTreeFile | undefined {
     };
   }
 
+  // Porcelain v2 unmerged: u <XY> <sub> <m1> <m2> <m3> <mW> <h1> <h2> <h3> <path>
   if (line.startsWith('u ')) {
     const parts = line.split(' ');
     const xy = parts[1] ?? 'UU';
-    const path = line.split('\t').pop() ?? '';
+    const filePath = parts.slice(10).join(' ');
 
     return {
-      path,
+      path: filePath,
       indexStatus: xy[0] ?? 'U',
       workTreeStatus: xy[1] ?? 'U',
       conflicted: true
@@ -116,9 +131,9 @@ function parseStatusLine(line: string): WorkingTreeFile | undefined {
   }
 
   if (line.startsWith('?')) {
-    const path = line.slice(2).trim();
+    const filePath = line.slice(2).trim();
     return {
-      path,
+      path: filePath,
       indexStatus: '?',
       workTreeStatus: '?',
       conflicted: false
