@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.1 - 2026-04-14
+
+- Maintenance release for Marketplace republish.
+
 ## 1.1.0 - 2026-04-14
 
 - Add delete local branches modal with multi-select capabilities.

@@ -218,7 +218,7 @@ select:focus {
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) 5px minmax(20rem, 0.95fr);
+  grid-template-columns: var(--layout-left, minmax(0, 1.55fr)) 5px var(--layout-right, minmax(20rem, 0.95fr));
   gap: 0;
   flex: 1;
   min-height: 0;
@@ -731,6 +731,7 @@ select:focus {
 @media (max-width: 1180px) {
   .layout {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .resizer {

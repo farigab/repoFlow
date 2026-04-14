@@ -29,6 +29,8 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     _context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken
   ): void {
+    void _context;
+    void _token;
     this.currentView = webviewView;
 
     webviewView.webview.options = {

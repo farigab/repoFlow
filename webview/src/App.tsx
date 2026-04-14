@@ -208,7 +208,10 @@ export function App() {
             <section
                 className="layout"
                 ref={containerRef as React.RefObject<HTMLElement>}
-                style={{ gridTemplateColumns: `${leftPercent}% 5px ${100 - leftPercent}%` }}
+                style={{
+                    '--layout-left': `${leftPercent}%`,
+                    '--layout-right': `${100 - leftPercent}%`
+                } as React.CSSProperties}
             >
                 <GraphCanvas
                     snapshot={snapshot}
