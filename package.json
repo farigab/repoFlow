@@ -2,7 +2,7 @@
   "name": "gitgraphor",
   "displayName": "Git Graphor",
   "description": "Interactive Git graph explorer for Visual Studio Code with native diff integration.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "farigab",
   "license": "MIT",
   "icon": "media/icon.png",
