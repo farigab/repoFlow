@@ -76,11 +76,8 @@ export interface WorkingTreeStatus {
 }
 
 export interface GraphFilters {
-  branch?: string;
   author?: string;
   search?: string;
-  since?: string;
-  until?: string;
   includeRemotes: boolean;
   limit: number;
 }

@@ -80,7 +80,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const repoRoot = await repository.resolveRepositoryRoot();
       const name = await vscode.window.showInputBox({
         title: 'Create Branch',
-        prompt: 'Nome da nova branch',
+        prompt: 'New branch name',
         ignoreFocusOut: true
       });
 
@@ -95,7 +95,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const repoRoot = await repository.resolveRepositoryRoot();
       const message = await vscode.window.showInputBox({
         title: 'Commit Changes',
-        prompt: 'Mensagem do commit',
+        prompt: 'Commit message',
         ignoreFocusOut: true
       });
 
@@ -121,4 +121,4 @@ async function openNativeDiff(request: DiffRequest, provider: GitContentProvider
   });
 }
 
-export function deactivate(): void {}
+export function deactivate(): void { }

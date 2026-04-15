@@ -130,7 +130,6 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   private async handleMessage(message: WebviewToExtensionMessage): Promise<void> {
     switch (message.type) {
       case 'ready':
-      case 'refresh':
         await this.refresh();
         return;
       case 'loadMore':
@@ -150,21 +149,6 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
         return;
       case 'openDiff':
         await this.repository.openDiff(message.payload);
-        return;
-      case 'fetch':
-        await this.executeRepositoryAction('Fetching...', async () => {
-          await this.repository.fetch(message.payload.repoRoot);
-        });
-        return;
-      case 'pull':
-        await this.executeRepositoryAction('Pulling...', async () => {
-          await this.repository.pull(message.payload.repoRoot);
-        });
-        return;
-      case 'push':
-        await this.executeRepositoryAction('Pushing...', async () => {
-          await this.repository.push(message.payload.repoRoot);
-        });
         return;
       case 'createBranchPrompt': {
         const name = await vscode.window.showInputBox({
@@ -196,27 +180,6 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
         await this.executeRepositoryAction('Deleting branch...', async () => {
           await this.repository.deleteBranch(message.payload.repoRoot, message.payload.branchName);
-        });
-        return;
-      }
-      case 'checkoutBranch':
-        await this.executeRepositoryAction('Checking out...', async () => {
-          await this.repository.checkout(message.payload.repoRoot, message.payload.branchName);
-        });
-        return;
-      case 'mergeBranchPrompt': {
-        const confirmed = await vscode.window.showWarningMessage(
-          `Merge ${message.payload.branchName} into the current branch?`,
-          { modal: true },
-          'Merge'
-        );
-
-        if (confirmed !== 'Merge') {
-          return;
-        }
-
-        await this.executeRepositoryAction('Merging...', async () => {
-          await this.repository.merge(message.payload.repoRoot, message.payload.branchName);
         });
         return;
       }

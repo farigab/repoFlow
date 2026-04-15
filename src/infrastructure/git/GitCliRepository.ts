@@ -5,23 +5,23 @@ import { promisify } from 'node:util';
 import * as vscode from 'vscode';
 import { buildGraphRows } from '../../application/graph/buildGraphRows';
 import type {
-    BranchSummary,
-    CommitDetail,
-    DiffRequest,
-    GraphFilters,
-    GraphSnapshot,
-    RepoGitConfig,
-    WorkingTreeStatus
+  BranchSummary,
+  CommitDetail,
+  DiffRequest,
+  GraphFilters,
+  GraphSnapshot,
+  RepoGitConfig,
+  WorkingTreeStatus
 } from '../../core/models/GitModels';
 import type { GitRepository } from '../../core/ports/GitRepository';
 import { EMPTY_TREE } from '../../shared/constants';
 import { GitCache } from './GitCache';
 import {
-    parseBranchList,
-    parseCommitDetailHeader,
-    parseCommitFiles,
-    parseCommitLog,
-    parseWorkingTreeStatus
+  parseBranchList,
+  parseCommitDetailHeader,
+  parseCommitFiles,
+  parseCommitLog,
+  parseWorkingTreeStatus
 } from './GitParsers';
 
 const execFileAsync = promisify(execFile);
@@ -36,7 +36,7 @@ export class GitCliRepository implements GitRepository {
   public constructor(
     private readonly output: vscode.OutputChannel,
     private readonly openDiffHandler: (request: DiffRequest) => Promise<void>
-  ) {}
+  ) { }
 
   public async resolveRepositoryRoot(preferredPath?: string): Promise<string> {
     const candidates = new Set<string>();
@@ -86,25 +86,13 @@ export class GitCliRepository implements GitRepository {
       logArgs.push(`--author=${filters.author}`);
     }
 
-    if (filters.since) {
-      logArgs.push(`--since=${filters.since}`);
-    }
-
-    if (filters.until) {
-      logArgs.push(`--until=${filters.until}`);
-    }
-
     if (filters.search && !/^[0-9a-f]{4,40}$/i.test(filters.search)) {
       logArgs.push(`--grep=${filters.search}`, '--regexp-ignore-case');
     }
 
-    if (filters.branch) {
-      logArgs.push(filters.branch);
-    } else {
-      logArgs.push('--branches', '--tags');
-      if (filters.includeRemotes) {
-        logArgs.push('--remotes');
-      }
+    logArgs.push('--branches', '--tags');
+    if (filters.includeRemotes) {
+      logArgs.push('--remotes');
     }
 
     const [rawLog, branches, localChanges, repoConfig] = await Promise.all([
@@ -280,11 +268,6 @@ export class GitCliRepository implements GitRepository {
 
   public async cherryPick(repoRoot: string, commitHash: string): Promise<void> {
     await this.runGit(repoRoot, ['cherry-pick', commitHash]);
-    this.graphCache.clear();
-  }
-
-  public async addTag(repoRoot: string, name: string, commitHash: string): Promise<void> {
-    await this.runGit(repoRoot, ['tag', name, commitHash]);
     this.graphCache.clear();
   }
 

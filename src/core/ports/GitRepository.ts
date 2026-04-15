@@ -1,11 +1,11 @@
 import type {
-    BranchSummary,
-    CommitDetail,
-    DiffRequest,
-    GraphFilters,
-    GraphSnapshot,
-    RepoGitConfig,
-    WorkingTreeStatus
+  BranchSummary,
+  CommitDetail,
+  DiffRequest,
+  GraphFilters,
+  GraphSnapshot,
+  RepoGitConfig,
+  WorkingTreeStatus
 } from '../models/GitModels';
 
 export interface GitRepository {
@@ -27,7 +27,6 @@ export interface GitRepository {
   pull(repoRoot: string): Promise<void>;
   push(repoRoot: string): Promise<void>;
   cherryPick(repoRoot: string, commitHash: string): Promise<void>;
-  addTag(repoRoot: string, name: string, commitHash: string): Promise<void>;
   revert(repoRoot: string, commitHash: string): Promise<void>;
   dropCommit(repoRoot: string, commitHash: string): Promise<void>;
   rebase(repoRoot: string, onto: string): Promise<void>;
