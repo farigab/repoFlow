@@ -360,6 +360,114 @@ select:focus {
   margin-top: 0.08rem;
 }
 
+/* ── Find bar ─────────────────────────────────────────────── */
+.find-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  background: var(--vscode-editorWidget-background, var(--panel));
+  border-bottom: 1px solid var(--panel-border);
+  flex-shrink: 0;
+}
+
+.find-bar__input {
+  flex: 1;
+  min-width: 0;
+  max-width: 200px;
+  padding: 3px 7px;
+  background: var(--vscode-input-background, #3c3c3c);
+  color: var(--vscode-input-foreground, var(--text));
+  border: 1px solid var(--vscode-input-border, var(--panel-border));
+  border-radius: var(--radius);
+  outline: none;
+  font-size: 0.82rem;
+}
+
+.find-bar__input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.find-bar__opt {
+  padding: 1px 5px;
+  font-size: 0.75rem;
+  font-family: monospace;
+  min-width: 26px;
+  border-radius: 3px;
+  opacity: 0.6;
+  border: 1px solid transparent;
+  background: transparent;
+}
+
+.find-bar__opt:hover {
+  opacity: 1;
+  border-color: var(--panel-border);
+}
+
+.find-bar__opt--on {
+  opacity: 1;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: var(--accent) !important;
+  color: var(--accent);
+}
+
+.find-bar__count {
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+  padding: 0 6px;
+  min-width: 7rem;
+  text-align: center;
+}
+
+.find-bar__nav,
+.find-bar__close {
+  padding: 2px 5px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  background: transparent;
+  border: 1px solid transparent;
+  opacity: 0.7;
+}
+
+.find-bar__nav:hover,
+.find-bar__close:hover {
+  opacity: 1;
+  border-color: var(--panel-border);
+}
+
+.find-bar__nav:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* ── Match highlight on rows ──────────────────────────────── */
+.graph-row--match::before {
+  background: color-mix(in srgb, var(--warning) 7%, transparent) !important;
+}
+
+.graph-row--match-current::before {
+  background: color-mix(in srgb, var(--warning) 18%, transparent) !important;
+  box-shadow: inset 2px 0 0 var(--warning) !important;
+}
+
+/* ── Text highlight inside rows ───────────────────────────── */
+mark.find-highlight {
+  background: color-mix(in srgb, var(--warning) 45%, transparent);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.graph-row--match-current mark.find-highlight {
+  background: var(--warning);
+  color: var(--bg);
+}
+
 .ref-pill {
   display: inline-flex;
   align-items: center;

@@ -1,4 +1,4 @@
-import type { CSSProperties, MouseEvent } from 'react';
+import type { CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CommitSummary, GraphSnapshot } from '../../../src/core/models/GitModels';
 
@@ -99,6 +99,34 @@ function getLaneColor(lane: number): string {
     return PALETTE[lane % PALETTE.length];
 }
 
+function buildSearchPattern(query: string, caseSensitive: boolean, wholeWord: boolean, useRegex: boolean): RegExp | null {
+    if (!query) return null;
+    try {
+        const flags = caseSensitive ? 'g' : 'gi';
+        const escaped = useRegex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const source = wholeWord ? `\\b${escaped}\\b` : escaped;
+        return new RegExp(source, flags);
+    } catch {
+        return null;
+    }
+}
+
+function highlightText(text: string, pattern: RegExp | null): ReactNode {
+    if (!pattern || !text) return text;
+    const parts: ReactNode[] = [];
+    let lastIndex = 0;
+    const re = new RegExp(pattern.source, pattern.flags.replace('g', '') + 'g');
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text)) !== null) {
+        if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
+        parts.push(<mark key={match.index} className="find-highlight">{match[0]}</mark>);
+        lastIndex = match.index + match[0].length;
+        if (match[0].length === 0) { re.lastIndex++; }
+    }
+    if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+    return <>{parts}</>;
+}
+
 export function GraphCanvas({ snapshot, selectedCommitHash, onSelectCommit, onOpenContextMenu, onLoadMore, onOpenSettings, onOpenPR, onOpenDeleteBranches }: GraphCanvasProps) {
     const rowHeight = 46;
     const laneGap = 20;
@@ -109,6 +137,14 @@ export function GraphCanvas({ snapshot, selectedCommitHash, onSelectCommit, onOp
     const loadingRef = useRef(false);
     const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [hoverTooltip, setHoverTooltip] = useState<HoverTooltip | null>(null);
+
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [caseSensitive, setCaseSensitive] = useState(false);
+    const [wholeWord, setWholeWord] = useState(false);
+    const [useRegex, setUseRegex] = useState(false);
+    const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
     const handleNodeMouseEnter = useCallback((event: MouseEvent<SVGGElement>, commit: CommitSummary) => {
         if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
@@ -146,6 +182,32 @@ export function GraphCanvas({ snapshot, selectedCommitHash, onSelectCommit, onOp
     const rowByHash = useMemo(() => {
         return new Map(snapshot.rows.map((row) => [row.commit.hash, row.row]));
     }, [snapshot.rows]);
+
+    const searchPattern = useMemo(
+        () => buildSearchPattern(searchQuery, caseSensitive, wholeWord, useRegex),
+        [searchQuery, caseSensitive, wholeWord, useRegex]
+    );
+
+    const matchedRows = useMemo(() => {
+        if (!searchPattern) return [];
+        return snapshot.rows.filter((row) => {
+            const fields = [
+                row.commit.subject,
+                row.commit.shortHash,
+                row.commit.hash,
+                row.commit.authorName,
+                formatDate(row.commit.authoredAt),
+                ...row.commit.refs.map((r) => r.name)
+            ];
+            return fields.some((f) => { searchPattern.lastIndex = 0; return searchPattern.test(f); });
+        });
+    }, [searchPattern, snapshot.rows]);
+
+    const matchIndexByHash = useMemo(() => {
+        const map = new Map<string, number>();
+        matchedRows.forEach((row, i) => map.set(row.commit.hash, i));
+        return map;
+    }, [matchedRows]);
 
     const edges = snapshot.rows.flatMap((row) => {
         return row.connections.map((connection) => {
@@ -204,6 +266,42 @@ export function GraphCanvas({ snapshot, selectedCommitHash, onSelectCommit, onOp
         onOpenContextMenu(commit, { x: event.clientX, y: event.clientY });
     };
 
+    useEffect(() => {
+        const onKey = (e: globalThis.KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                e.preventDefault();
+                setSearchOpen(true);
+                setTimeout(() => { searchInputRef.current?.focus(); searchInputRef.current?.select(); }, 0);
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, []);
+
+    useEffect(() => { setCurrentMatchIndex(0); }, [searchQuery, caseSensitive, wholeWord, useRegex]);
+
+    useEffect(() => {
+        if (matchedRows.length === 0 || !viewportRef.current) return;
+        const match = matchedRows[currentMatchIndex % matchedRows.length];
+        if (!match) return;
+        const el = viewportRef.current.querySelector(`[data-hash="${match.commit.hash}"]`);
+        el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, [currentMatchIndex, matchedRows]);
+
+    const closeSearch = useCallback(() => { setSearchOpen(false); setSearchQuery(''); }, []);
+    const nextMatch = useCallback(() => {
+        if (matchedRows.length === 0) return;
+        setCurrentMatchIndex((i) => (i + 1) % matchedRows.length);
+    }, [matchedRows.length]);
+    const prevMatch = useCallback(() => {
+        if (matchedRows.length === 0) return;
+        setCurrentMatchIndex((i) => (i - 1 + matchedRows.length) % matchedRows.length);
+    }, [matchedRows.length]);
+    const handleFindKeyDown = useCallback((e: KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') { e.preventDefault(); if (e.shiftKey) prevMatch(); else nextMatch(); }
+        else if (e.key === 'Escape') { closeSearch(); }
+    }, [nextMatch, prevMatch, closeSearch]);
+
     return (
         <section className="graph panel">
             <header className="panel__header">
@@ -242,6 +340,37 @@ export function GraphCanvas({ snapshot, selectedCommitHash, onSelectCommit, onOp
                 </div>
             </header>
 
+            {searchOpen && (
+                <div className="find-bar" role="search">
+                    <input
+                        ref={searchInputRef}
+                        className="find-bar__input"
+                        type="text"
+                        placeholder="Find"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyDown={handleFindKeyDown}
+                        aria-label="Find in commit history"
+                        spellCheck={false}
+                    />
+                    <button type="button" className={`find-bar__opt${caseSensitive ? ' find-bar__opt--on' : ''}`} title="Match Case (Alt+C)" onClick={() => setCaseSensitive((v) => !v)} aria-pressed={caseSensitive}>Aa</button>
+                    <button type="button" className={`find-bar__opt${wholeWord ? ' find-bar__opt--on' : ''}`} title="Match Whole Word (Alt+W)" onClick={() => setWholeWord((v) => !v)} aria-pressed={wholeWord}>ab</button>
+                    <button type="button" className={`find-bar__opt${useRegex ? ' find-bar__opt--on' : ''}`} title="Use Regular Expression (Alt+R)" onClick={() => setUseRegex((v) => !v)} aria-pressed={useRegex}>.*</button>
+                    <span className="find-bar__count">
+                        {searchQuery ? (matchedRows.length === 0 ? 'No results' : `${currentMatchIndex + 1} of ${matchedRows.length}`) : ''}
+                    </span>
+                    <button type="button" className="find-bar__nav" onClick={prevMatch} title="Previous Match (Shift+Enter)" disabled={matchedRows.length === 0}>
+                        <i className="codicon codicon-arrow-up" aria-hidden="true" />
+                    </button>
+                    <button type="button" className="find-bar__nav" onClick={nextMatch} title="Next Match (Enter)" disabled={matchedRows.length === 0}>
+                        <i className="codicon codicon-arrow-down" aria-hidden="true" />
+                    </button>
+                    <button type="button" className="find-bar__close" onClick={closeSearch} title="Close (Escape)">
+                        <i className="codicon codicon-close" aria-hidden="true" />
+                    </button>
+                </div>
+            )}
+
             <div className="graph__viewport" ref={viewportRef}>
                 <div className="graph__canvas" style={{ '--graph-width': `${graphWidth}px` } as CSSProperties}>
                     <svg className="graph__svg" width={graphWidth} height={totalHeight} viewBox={`0 0 ${graphWidth} ${totalHeight}`} role="img" aria-label="Git graph canvas">
@@ -258,28 +387,38 @@ export function GraphCanvas({ snapshot, selectedCommitHash, onSelectCommit, onOp
                     <div className="graph__rows">
                         {snapshot.rows.map((row) => {
                             const isSelected = row.commit.hash === selectedCommitHash;
+                            const matchIdx = matchIndexByHash.get(row.commit.hash);
+                            const isMatch = matchIdx !== undefined;
+                            const isCurrentMatch = matchIdx === currentMatchIndex && isMatch;
+                            const rowClass = [
+                                'graph-row',
+                                isSelected ? 'graph-row--selected' : '',
+                                isMatch ? 'graph-row--match' : '',
+                                isCurrentMatch ? 'graph-row--match-current' : ''
+                            ].filter(Boolean).join(' ');
                             return (
                                 <button
                                     key={row.commit.hash}
+                                    data-hash={row.commit.hash}
                                     type="button"
-                                    className={`graph-row${isSelected ? ' graph-row--selected' : ''}`}
+                                    className={rowClass}
                                     onClick={() => onSelectCommit(row.commit)}
                                     onContextMenu={(event) => handleContextMenu(event, row.commit)}
                                 >
                                     <div className="graph-row__title-line">
-                                        <span className="graph-row__subject">{row.commit.subject}</span>
+                                        <span className="graph-row__subject">{highlightText(row.commit.subject, searchPattern)}</span>
                                         {row.commit.refs.map((ref) => (
                                             <span key={`${row.commit.hash}-${ref.type}-${ref.name}`} className={`ref-pill ref-pill--${ref.type}`}>
-                                                {ref.name}
+                                                {highlightText(ref.name, searchPattern)}
                                             </span>
                                         ))}
                                         {row.commit.isDirtyHead ? <span className="ref-pill ref-pill--dirty">dirty</span> : null}
                                     </div>
 
                                     <div className="graph-row__meta">
-                                        <span>{row.commit.shortHash}</span>
-                                        <span>{row.commit.authorName}</span>
-                                        <span>{formatDate(row.commit.authoredAt)}</span>
+                                        <span>{highlightText(row.commit.shortHash, searchPattern)}</span>
+                                        <span>{highlightText(row.commit.authorName, searchPattern)}</span>
+                                        <span>{highlightText(formatDate(row.commit.authoredAt), searchPattern)}</span>
                                     </div>
                                 </button>
                             );
