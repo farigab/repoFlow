@@ -37,6 +37,7 @@ export function App() {
     const [prOpen, setPrOpen] = useState(false);
     const [deleteBranchesOpen, setDeleteBranchesOpen] = useState(false);
     const [isUncommittedSelected, setIsUncommittedSelected] = useState(false);
+    const [isCommitDetailsOpen, setIsCommitDetailsOpen] = useState(true);
 
     const deferredFilters = {
         ...filters,
@@ -56,6 +57,7 @@ export function App() {
                 case 'commitDetail':
                     setSelectedCommit(message.payload);
                     setSelectedCommitHash(message.payload.hash);
+                    setIsCommitDetailsOpen(true);
                     return;
                 case 'busy':
                     setBusy(message.payload);
@@ -115,6 +117,7 @@ export function App() {
 
     const assets = useMemo(() => window.__GITGRAPHOR_ASSETS__ ?? {}, []);
     const { leftPercent, containerRef, onDividerMouseDown } = useResizableSplit(62);
+    const showSidebar = isUncommittedSelected || isCommitDetailsOpen;
 
     const handleSelectCommit = (commit: CommitSummary): void => {
         if (!snapshot) {
@@ -122,6 +125,7 @@ export function App() {
         }
 
         setIsUncommittedSelected(false);
+        setIsCommitDetailsOpen(true);
         setSelectedCommitHash(commit.hash);
         vscode.postMessage({
             type: 'selectCommit',
@@ -234,11 +238,11 @@ export function App() {
     return (
         <main className="shell">
             <section
-                className="layout"
+                className={`layout${showSidebar ? '' : ' layout--details-collapsed'}`}
                 ref={containerRef as React.RefObject<HTMLElement>}
                 style={{
-                    '--layout-left': `${leftPercent}%`,
-                    '--layout-right': `${100 - leftPercent}%`
+                    '--layout-left': `${showSidebar ? leftPercent : 100}%`,
+                    '--layout-right': `${showSidebar ? 100 - leftPercent : 0}%`
                 } as React.CSSProperties}
             >
                 <GraphCanvas
@@ -254,19 +258,26 @@ export function App() {
                     onOpenDeleteBranches={() => setDeleteBranchesOpen(true)}
                 />
 
-                <div className="resizer" onMouseDown={onDividerMouseDown} />
-                <aside className="sidebar">
-                    {isUncommittedSelected && (snapshot.localChanges.staged.length + snapshot.localChanges.unstaged.length + snapshot.localChanges.conflicted.length) > 0
-                        ? <LocalChangesPanel
-                            status={snapshot.localChanges}
-                            onStage={handleStageFile}
-                            onUnstage={handleUnstageFile}
-                            onDiscard={handleDiscardFile}
-                            onCommit={handleCommit}
-                        />
-                        : <CommitDetails detail={selectedCommit} repoRoot={snapshot.repoRoot} onOpenDiff={handleOpenDiff} />
-                    }
-                </aside>
+                {showSidebar ? <div className="resizer" onMouseDown={onDividerMouseDown} /> : null}
+                {showSidebar ? (
+                    <aside className="sidebar">
+                        {isUncommittedSelected && (snapshot.localChanges.staged.length + snapshot.localChanges.unstaged.length + snapshot.localChanges.conflicted.length) > 0
+                            ? <LocalChangesPanel
+                                status={snapshot.localChanges}
+                                onStage={handleStageFile}
+                                onUnstage={handleUnstageFile}
+                                onDiscard={handleDiscardFile}
+                                onCommit={handleCommit}
+                            />
+                            : <CommitDetails
+                                detail={selectedCommit}
+                                repoRoot={snapshot.repoRoot}
+                                onOpenDiff={handleOpenDiff}
+                                onClose={() => setIsCommitDetailsOpen(false)}
+                            />
+                        }
+                    </aside>
+                ) : null}
             </section>
 
             {contextMenu ? (
