@@ -65,6 +65,9 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   }
 
   public openOrReveal(): void {
+    this.selectedCommitHash = undefined;
+    this.filters = { includeRemotes: true, limit: 200 };
+
     if (this.currentPanel) {
       this.currentPanel.reveal(vscode.ViewColumn.One);
       void this.refresh();
