@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.4 - 2026-04-15
+
+- Add close action to Commit Details panel.
+- Collapse Commit Details and expand Commit History to full width when details are closed.
+- Reopen Commit Details automatically when selecting a commit in History.
+- Fix responsive layout gap when details are collapsed in non-maximized window sizes.
+- Prevent stale commit-details flicker by only rendering details after the selected commit payload arrives.
+
 ## 1.1.3 - 2026-04-15
 
 - Redesign find bar: search icon embedded inside input, option buttons (Aa / ab / .*) grouped in a single segmented control with dividers, match counter displayed as a pill, navigation arrows grouped side by side.
