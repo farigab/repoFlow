@@ -1,5 +1,5 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import type { CommitDetail, CommitFileChange, CommitSummary, DiffRequest, GraphFilters, GraphSnapshot, WorkingTreeFile } from '../../src/core/models/GitModels';
+import type { CommitDetail, CommitFileChange, CommitSummary, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, WorkingTreeFile } from '../../src/core/models/GitModels';
 import type { ExtensionToWebviewMessage } from '../../src/shared/protocol';
 import { CommitDetails } from './components/CommitDetails';
 import { CreatePRModal } from './components/CreatePRModal';
@@ -7,6 +7,7 @@ import { DeleteBranchesModal } from './components/DeleteBranchesModal';
 import { GraphCanvas } from './components/GraphCanvas';
 import { LocalChangesPanel } from './components/LocalChangesPanel';
 import { RepoSettingsModal } from './components/RepoSettingsModal';
+import { StashModal } from './components/StashModal';
 import { useResizableSplit } from './hooks/useResizableSplit';
 import { vscode } from './vscode';
 
@@ -36,6 +37,8 @@ export function App() {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [prOpen, setPrOpen] = useState(false);
     const [deleteBranchesOpen, setDeleteBranchesOpen] = useState(false);
+    const [stashOpen, setStashOpen] = useState(false);
+    const [stashes, setStashes] = useState<StashEntry[]>([]);
     const [isUncommittedSelected, setIsUncommittedSelected] = useState(false);
     const [isCommitDetailsOpen, setIsCommitDetailsOpen] = useState(false);
     const requestedCommitHashRef = useRef<string | undefined>(undefined);
@@ -69,6 +72,9 @@ export function App() {
                 case 'notification':
                     setNotification(message.payload);
                     window.setTimeout(() => setNotification(null), 3000);
+                    return;
+                case 'stashList':
+                    setStashes(message.payload.entries);
                     return;
                 default:
                     return;
@@ -139,7 +145,7 @@ export function App() {
             type: 'selectCommit',
             payload: { repoRoot: snapshot.repoRoot, commitHash: commit.hash }
         });
-        
+
         return;
     };
 
@@ -267,6 +273,12 @@ export function App() {
                     onOpenSettings={() => setSettingsOpen(true)}
                     onOpenPR={() => setPrOpen(true)}
                     onOpenDeleteBranches={() => setDeleteBranchesOpen(true)}
+                    onOpenStashModal={() => {
+                        if (snapshot) {
+                            vscode.postMessage({ type: 'listStashes', payload: { repoRoot: snapshot.repoRoot } });
+                        }
+                        setStashOpen(true);
+                    }}
                 />
 
                 {showSidebar ? <div className="resizer" onMouseDown={onDividerMouseDown} /> : null}
@@ -349,6 +361,13 @@ export function App() {
                 <DeleteBranchesModal
                     snapshot={snapshot}
                     onClose={() => setDeleteBranchesOpen(false)}
+                />
+            ) : null}
+            {stashOpen && snapshot ? (
+                <StashModal
+                    snapshot={snapshot}
+                    stashes={stashes}
+                    onClose={() => setStashOpen(false)}
                 />
             ) : null}
         </main>

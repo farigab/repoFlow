@@ -401,6 +401,57 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
         }
         return;
       }
+      case 'listStashes': {
+        const entries = await this.repository.listStashes(message.payload.repoRoot);
+        await this.postMessage({ type: 'stashList', payload: { entries } });
+        return;
+      }
+      case 'stashChanges': {
+        await this.executeRepositoryAction('Stashing changes...', async () => {
+          await this.repository.stashChanges(
+            message.payload.repoRoot,
+            message.payload.message,
+            message.payload.includeUntracked
+          );
+        });
+        const entries = await this.repository.listStashes(message.payload.repoRoot);
+        await this.postMessage({ type: 'stashList', payload: { entries } });
+        return;
+      }
+      case 'applyStash': {
+        await this.executeRepositoryAction('Applying stash...', async () => {
+          await this.repository.applyStash(message.payload.repoRoot, message.payload.ref);
+        });
+        const entries = await this.repository.listStashes(message.payload.repoRoot);
+        await this.postMessage({ type: 'stashList', payload: { entries } });
+        return;
+      }
+      case 'popStash': {
+        await this.executeRepositoryAction('Popping stash...', async () => {
+          await this.repository.popStash(message.payload.repoRoot, message.payload.ref);
+        });
+        const entries = await this.repository.listStashes(message.payload.repoRoot);
+        await this.postMessage({ type: 'stashList', payload: { entries } });
+        return;
+      }
+      case 'dropStash': {
+        const confirmed = await vscode.window.showWarningMessage(
+          `Drop stash ${message.payload.ref}?`,
+          { modal: true },
+          'Drop'
+        );
+
+        if (confirmed !== 'Drop') {
+          return;
+        }
+
+        await this.executeRepositoryAction('Dropping stash...', async () => {
+          await this.repository.dropStash(message.payload.repoRoot, message.payload.ref);
+        });
+        const entries = await this.repository.listStashes(message.payload.repoRoot);
+        await this.postMessage({ type: 'stashList', payload: { entries } });
+        return;
+      }
       default:
         return;
     }

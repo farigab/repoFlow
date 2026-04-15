@@ -1,4 +1,4 @@
-import type { CommitDetail, DiffRequest, GraphFilters, GraphSnapshot, WorkingTreeFile } from '../core/models/GitModels';
+import type { CommitDetail, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, WorkingTreeFile } from '../core/models/GitModels';
 
 export type WebviewToExtensionMessage =
   | { type: 'ready' }
@@ -25,10 +25,16 @@ export type WebviewToExtensionMessage =
   | { type: 'setGitUserName'; payload: { repoRoot: string; name: string } }
   | { type: 'setGitUserEmail'; payload: { repoRoot: string; email: string } }
   | { type: 'setRemoteUrl'; payload: { repoRoot: string; remoteName: string; url: string } }
-  | { type: 'openPullRequest'; payload: { repoRoot: string; sourceBranch: string; targetBranch: string; title: string; description: string } };
+  | { type: 'openPullRequest'; payload: { repoRoot: string; sourceBranch: string; targetBranch: string; title: string; description: string } }
+  | { type: 'listStashes'; payload: { repoRoot: string } }
+  | { type: 'stashChanges'; payload: { repoRoot: string; message?: string; includeUntracked: boolean } }
+  | { type: 'applyStash'; payload: { repoRoot: string; ref: string } }
+  | { type: 'popStash'; payload: { repoRoot: string; ref: string } }
+  | { type: 'dropStash'; payload: { repoRoot: string; ref: string } };
 
 export type ExtensionToWebviewMessage =
   | { type: 'graphSnapshot'; payload: GraphSnapshot }
   | { type: 'commitDetail'; payload: CommitDetail }
   | { type: 'busy'; payload: { value: boolean; label?: string } }
-  | { type: 'notification'; payload: { kind: 'info' | 'error'; message: string } };
+  | { type: 'notification'; payload: { kind: 'info' | 'error'; message: string } }
+  | { type: 'stashList'; payload: { entries: StashEntry[] } };

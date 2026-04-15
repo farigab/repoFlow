@@ -11,6 +11,7 @@ import type {
   GraphFilters,
   GraphSnapshot,
   RepoGitConfig,
+  StashEntry,
   WorkingTreeStatus
 } from '../../core/models/GitModels';
 import type { GitRepository } from '../../core/ports/GitRepository';
@@ -28,6 +29,39 @@ const execFileAsync = promisify(execFile);
 
 function escapePathSpec(filePath: string): string {
   return filePath.replace(/\\/g, '/');
+}
+
+function parseStashList(raw: string): StashEntry[] {
+  if (!raw.trim()) {
+    return [];
+  }
+
+  const entries: StashEntry[] = [];
+  for (const record of raw.split('\x1e')) {
+    const trimmed = record.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    const parts = trimmed.split('\x1f');
+    if (parts.length < 3) {
+      continue;
+    }
+
+    const ref = parts[0].trim();
+    const subject = parts[1].trim();
+    const date = parts[2].trim();
+
+    const indexMatch = /stash@\{(\d+)\}/.exec(ref);
+    const index = indexMatch ? parseInt(indexMatch[1], 10) : 0;
+
+    const branchMatch = /^(?:WIP on|On) ([^:]+):/.exec(subject);
+    const branch = branchMatch ? branchMatch[1].trim() : '';
+
+    entries.push({ index, ref, message: subject, branch, date });
+  }
+
+  return entries;
 }
 
 export class GitCliRepository implements GitRepository {
@@ -327,6 +361,44 @@ export class GitCliRepository implements GitRepository {
 
   public async setRemoteUrl(repoRoot: string, remoteName: string, url: string): Promise<void> {
     await this.runGit(repoRoot, ['remote', 'set-url', remoteName, url]);
+    this.graphCache.clear();
+  }
+
+  public async listStashes(repoRoot: string): Promise<StashEntry[]> {
+    const raw = await this.runGit(repoRoot, [
+      'stash', 'list',
+      '--format=%gd\x1f%s\x1f%ci\x1e'
+    ]).catch(() => '');
+
+    return parseStashList(raw);
+  }
+
+  public async stashChanges(repoRoot: string, message?: string, includeUntracked = false): Promise<void> {
+    const args = ['stash', 'push'];
+    if (includeUntracked) {
+      args.push('--include-untracked');
+    }
+
+    if (message?.trim()) {
+      args.push('-m', message.trim());
+    }
+
+    await this.runGit(repoRoot, args);
+    this.graphCache.clear();
+  }
+
+  public async applyStash(repoRoot: string, ref: string): Promise<void> {
+    await this.runGit(repoRoot, ['stash', 'apply', ref]);
+    this.graphCache.clear();
+  }
+
+  public async popStash(repoRoot: string, ref: string): Promise<void> {
+    await this.runGit(repoRoot, ['stash', 'pop', ref]);
+    this.graphCache.clear();
+  }
+
+  public async dropStash(repoRoot: string, ref: string): Promise<void> {
+    await this.runGit(repoRoot, ['stash', 'drop', ref]);
     this.graphCache.clear();
   }
 

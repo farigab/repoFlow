@@ -105,6 +105,14 @@ export interface GraphSnapshot {
   repoConfig: RepoGitConfig;
 }
 
+export interface StashEntry {
+  index: number;
+  ref: string;
+  message: string;
+  branch: string;
+  date: string;
+}
+
 export interface DiffRequest {
   repoRoot: string;
   commitHash: string;

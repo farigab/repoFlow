@@ -5,6 +5,7 @@ import type {
   GraphFilters,
   GraphSnapshot,
   RepoGitConfig,
+  StashEntry,
   WorkingTreeStatus
 } from '../models/GitModels';
 
@@ -36,4 +37,9 @@ export interface GitRepository {
   setGitUserName(repoRoot: string, name: string): Promise<void>;
   setGitUserEmail(repoRoot: string, email: string): Promise<void>;
   setRemoteUrl(repoRoot: string, remoteName: string, url: string): Promise<void>;
+  listStashes(repoRoot: string): Promise<StashEntry[]>;
+  stashChanges(repoRoot: string, message?: string, includeUntracked?: boolean): Promise<void>;
+  applyStash(repoRoot: string, ref: string): Promise<void>;
+  popStash(repoRoot: string, ref: string): Promise<void>;
+  dropStash(repoRoot: string, ref: string): Promise<void>;
 }

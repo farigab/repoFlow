@@ -13,6 +13,7 @@ interface GraphCanvasProps {
     onOpenSettings: () => void;
     onOpenPR: () => void;
     onOpenDeleteBranches: () => void;
+    onOpenStashModal: () => void;
 }
 
 interface HoverTooltip {
@@ -129,7 +130,7 @@ function highlightText(text: string, pattern: RegExp | null): ReactNode {
     return <>{parts}</>;
 }
 
-export function GraphCanvas({ snapshot, selectedCommitHash, selectedUncommitted, onSelectCommit, onSelectUncommitted, onOpenContextMenu, onLoadMore, onOpenSettings, onOpenPR, onOpenDeleteBranches }: GraphCanvasProps) {
+export function GraphCanvas({ snapshot, selectedCommitHash, selectedUncommitted, onSelectCommit, onSelectUncommitted, onOpenContextMenu, onLoadMore, onOpenSettings, onOpenPR, onOpenDeleteBranches, onOpenStashModal }: GraphCanvasProps) {
     const rowHeight = 46;
     const laneGap = 20;
     const graphWidth = Math.max(110, 52 + (snapshot.maxLane + 1) * laneGap);
@@ -329,6 +330,15 @@ export function GraphCanvas({ snapshot, selectedCommitHash, selectedUncommitted,
                         aria-label="Create Pull Request"
                     >
                         <i className="codicon codicon-git-pull-request-create" aria-hidden="true" />
+                    </button>
+                    <button
+                        type="button"
+                        className="panel__settings-btn"
+                        onClick={onOpenStashModal}
+                        title="Git Stash"
+                        aria-label="Git Stash"
+                    >
+                        <i className="codicon codicon-archive" aria-hidden="true" />
                     </button>
                     <button
                         type="button"
