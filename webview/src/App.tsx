@@ -1,4 +1,4 @@
-import { startTransition, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { CommitDetail, CommitFileChange, CommitSummary, DiffRequest, GraphFilters, GraphSnapshot, WorkingTreeFile } from '../../src/core/models/GitModels';
 import type { ExtensionToWebviewMessage } from '../../src/shared/protocol';
 import { CommitDetails } from './components/CommitDetails';
@@ -38,6 +38,7 @@ export function App() {
     const [deleteBranchesOpen, setDeleteBranchesOpen] = useState(false);
     const [isUncommittedSelected, setIsUncommittedSelected] = useState(false);
     const [isCommitDetailsOpen, setIsCommitDetailsOpen] = useState(true);
+    const requestedCommitHashRef = useRef<string>();
 
     const deferredFilters = {
         ...filters,
@@ -55,6 +56,9 @@ export function App() {
                     setFilters(message.payload.filters);
                     return;
                 case 'commitDetail':
+                    if (requestedCommitHashRef.current && requestedCommitHashRef.current !== message.payload.hash) {
+                        return;
+                    }
                     setSelectedCommit(message.payload);
                     setSelectedCommitHash(message.payload.hash);
                     setIsCommitDetailsOpen(true);
@@ -84,6 +88,7 @@ export function App() {
         if (!selectedCommitHash || !snapshot.rows.some((row) => row.commit.hash === selectedCommitHash)) {
             const firstCommit = snapshot.rows[0]?.commit;
             if (firstCommit) {
+                requestedCommitHashRef.current = firstCommit.hash;
                 setSelectedCommitHash(firstCommit.hash);
                 vscode.postMessage({
                     type: 'selectCommit',
@@ -125,7 +130,7 @@ export function App() {
         }
 
         setIsUncommittedSelected(false);
-        setIsCommitDetailsOpen(true);
+        requestedCommitHashRef.current = commit.hash;
         setSelectedCommitHash(commit.hash);
         vscode.postMessage({
             type: 'selectCommit',
@@ -151,6 +156,7 @@ export function App() {
 
     const handleSelectUncommitted = (): void => {
         setIsUncommittedSelected(true);
+        requestedCommitHashRef.current = undefined;
         setSelectedCommitHash(undefined);
     };
 
