@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.3
+
+- Fixed alignment issue in the commit graph where commit nodes were slightly misaligned with their corresponding rows.
+
 ## 1.0.2
 
 - Fixed "Show in RepoFlow" from Git blame not highlighting the commit in the history when the panel was opened for the first time.
