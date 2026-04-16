@@ -1,11 +1,13 @@
 import type {
-    BranchSummary,
-    CommitDetail,
-    CommitFileChange,
-    CommitSummary,
-    GitRef,
-    WorkingTreeFile,
-    WorkingTreeStatus
+  BlameEntry,
+  BranchSummary,
+  CommitDetail,
+  CommitFileChange,
+  CommitStats,
+  CommitSummary,
+  GitRef,
+  WorkingTreeFile,
+  WorkingTreeStatus
 } from '../../core/models/GitModels';
 
 const RECORD_SEPARATOR = '\u001e';
@@ -262,4 +264,89 @@ export function parseCommitFiles(numstatRaw: string, nameStatusRaw: string): Com
     });
 
   return Array.from(fileByKey.values()).sort((left, right) => left.path.localeCompare(right.path));
+}
+
+/**
+ * Parses the output of `git blame --porcelain <file>`.
+ * Returns entries indexed 0-based (entries[0] = line 1).
+ */
+export function parseBlameOutput(raw: string): BlameEntry[] {
+  const lines = raw.split('\n');
+  const commitMeta = new Map<string, Omit<BlameEntry, 'lineNumber'>>();
+  const entries: BlameEntry[] = [];
+
+  let i = 0;
+  while (i < lines.length) {
+    // Header line: <40-char hash> <orig-lineno> <final-lineno> [<num-lines>]
+    const headerMatch = /^([0-9a-f]{40}) \d+ (\d+)/.exec(lines[i] ?? '');
+    if (!headerMatch) {
+      i++;
+      continue;
+    }
+
+    const hash = headerMatch[1];
+    const finalLine = parseInt(headerMatch[2], 10);
+    i++;
+
+    const isFirstOccurrence = !commitMeta.has(hash);
+    if (isFirstOccurrence) {
+      let authorName = '';
+      let authorEmail = '';
+      let committedAt = '';
+      let commitMessage = '';
+
+      // Parse metadata lines until we hit the content line (starts with \t)
+      while (i < lines.length && !(lines[i] ?? '').startsWith('\t')) {
+        const meta = lines[i] ?? '';
+        if (meta.startsWith('author ') && !meta.startsWith('author-')) {
+          authorName = meta.slice(7);
+        } else if (meta.startsWith('author-mail ')) {
+          authorEmail = meta.slice(12).replace(/[<>]/g, '').trim();
+        } else if (meta.startsWith('author-time ')) {
+          const unixSec = parseInt(meta.slice(12), 10);
+          committedAt = new Date(unixSec * 1000).toISOString();
+        } else if (meta.startsWith('summary ')) {
+          commitMessage = meta.slice(8);
+        }
+        i++;
+      }
+
+      commitMeta.set(hash, { commitHash: hash, authorName, authorEmail, committedAt, commitMessage });
+    } else {
+      // Subsequent occurrence: skip metadata until content line
+      while (i < lines.length && !(lines[i] ?? '').startsWith('\t')) {
+        i++;
+      }
+    }
+
+    i++; // skip content line
+
+    const meta = commitMeta.get(hash);
+    if (meta) {
+      entries.push({ ...meta, lineNumber: finalLine });
+    }
+  }
+
+  entries.sort((a, b) => a.lineNumber - b.lineNumber);
+  return entries;
+}
+
+/**
+ * Parses the output of `git show --format="" --numstat <hash>`.
+ */
+export function parseNumstatStats(raw: string): CommitStats {
+  let insertions = 0;
+  let deletions = 0;
+  let filesChanged = 0;
+
+  for (const line of raw.split('\n')) {
+    const match = /^(\d+)\t(\d+)\t/.exec(line.trim());
+    if (match) {
+      insertions += parseInt(match[1], 10);
+      deletions += parseInt(match[2], 10);
+      filesChanged++;
+    }
+  }
+
+  return { insertions, deletions, filesChanged };
 }

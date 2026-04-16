@@ -1,6 +1,8 @@
 import type {
+  BlameEntry,
   BranchSummary,
   CommitDetail,
+  CommitStats,
   DiffRequest,
   GraphFilters,
   GraphSnapshot,
@@ -42,4 +44,7 @@ export interface GitRepository {
   applyStash(repoRoot: string, ref: string): Promise<void>;
   popStash(repoRoot: string, ref: string): Promise<void>;
   dropStash(repoRoot: string, ref: string): Promise<void>;
+  getBlame(repoRoot: string, relativeFilePath: string): Promise<BlameEntry[]>;
+  getCommitStats(repoRoot: string, commitHash: string): Promise<CommitStats>;
+  resolveHeadHash(repoRoot: string): Promise<string>;
 }

@@ -113,6 +113,23 @@ export interface StashEntry {
   date: string;
 }
 
+export interface BlameEntry {
+  commitHash: string;
+  authorName: string;
+  authorEmail: string;
+  /** ISO 8601 timestamp */
+  committedAt: string;
+  commitMessage: string;
+  /** 1-based line number in the file */
+  lineNumber: number;
+}
+
+export interface CommitStats {
+  insertions: number;
+  deletions: number;
+  filesChanged: number;
+}
+
 export interface DiffRequest {
   repoRoot: string;
   commitHash: string;

@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { DiffRequest } from './core/models/GitModels';
 import { GitCliRepository } from './infrastructure/git/GitCliRepository';
+import { GitBlameController } from './presentation/blame/GitBlameController';
 import { GitContentProvider } from './presentation/diff/GitContentProvider';
 import { GitGraphViewProvider } from './presentation/webview/GitGraphViewProvider';
 import { EMPTY_TREE } from './shared/constants';
@@ -15,6 +16,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const contentProvider = new GitContentProvider(repository);
   const graphViewProvider = new GitGraphViewProvider(context.extensionUri, repository, output);
+  const blameController = new GitBlameController(repository, output);
 
   let refreshTimer: NodeJS.Timeout | undefined;
   const scheduleGraphRefresh = (): void => {
@@ -23,6 +25,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     refreshTimer = setTimeout(() => {
+      blameController.invalidateCache();
       void graphViewProvider.refresh().catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
         output.appendLine(`[watcher-error] ${message}`);
@@ -44,6 +47,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(output);
   context.subscriptions.push(...gitWatchers);
+  context.subscriptions.push(blameController);
   context.subscriptions.push(new vscode.Disposable(() => {
     if (refreshTimer) {
       clearTimeout(refreshTimer);

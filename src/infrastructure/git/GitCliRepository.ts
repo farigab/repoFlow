@@ -5,8 +5,10 @@ import { promisify } from 'node:util';
 import * as vscode from 'vscode';
 import { buildGraphRows } from '../../application/graph/buildGraphRows';
 import type {
+  BlameEntry,
   BranchSummary,
   CommitDetail,
+  CommitStats,
   DiffRequest,
   GraphFilters,
   GraphSnapshot,
@@ -18,10 +20,12 @@ import type { GitRepository } from '../../core/ports/GitRepository';
 import { EMPTY_TREE } from '../../shared/constants';
 import { GitCache } from './GitCache';
 import {
+  parseBlameOutput,
   parseBranchList,
   parseCommitDetailHeader,
   parseCommitFiles,
   parseCommitLog,
+  parseNumstatStats,
   parseWorkingTreeStatus
 } from './GitParsers';
 
@@ -400,6 +404,31 @@ export class GitCliRepository implements GitRepository {
   public async dropStash(repoRoot: string, ref: string): Promise<void> {
     await this.runGit(repoRoot, ['stash', 'drop', ref]);
     this.graphCache.clear();
+  }
+
+  public async getBlame(repoRoot: string, relativeFilePath: string): Promise<BlameEntry[]> {
+    const raw = await this.runGit(repoRoot, [
+      'blame',
+      '--porcelain',
+      '--',
+      relativeFilePath
+    ]);
+    return parseBlameOutput(raw);
+  }
+
+  public async getCommitStats(repoRoot: string, commitHash: string): Promise<CommitStats> {
+    const raw = await this.runGit(repoRoot, [
+      'show',
+      '--format=',
+      '--numstat',
+      commitHash
+    ]);
+    return parseNumstatStats(raw);
+  }
+
+  public async resolveHeadHash(repoRoot: string): Promise<string> {
+    const raw = await this.runGit(repoRoot, ['rev-parse', 'HEAD']);
+    return raw.trim();
   }
 
   private hasDirtyChanges(localChanges: WorkingTreeStatus): boolean {
