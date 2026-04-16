@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.5 - 2026-04-16
+
+### Added
+
+- Inline blame now displays only the author's name next to the selected line.
+- Hovering over a line shows a detailed modal with commit information (author, commit hash, and message).
+- Added a command to open Git Graph history for the selected line.
+
+### Improved
+
+- Enhanced inline blame styling for better visibility.
+
 ## 1.1.4 - 2026-04-15
 
 - Add close action to Commit Details panel.
