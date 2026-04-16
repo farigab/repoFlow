@@ -1,45 +1,13 @@
 # Changelog
 
-## 1.1.4 - 2026-04-15
+## Initial Version
 
-- Add close action to Commit Details panel.
-- Collapse Commit Details and expand Commit History to full width when details are closed.
-- Reopen Commit Details automatically when selecting a commit in History.
-- Fix responsive layout gap when details are collapsed in non-maximized window sizes.
-- Prevent stale commit-details flicker by only rendering details after the selected commit payload arrives.
-
-## 1.1.3 - 2026-04-15
-
-- Redesign find bar: search icon embedded inside input, option buttons (Aa / ab / .*) grouped in a single segmented control with dividers, match counter displayed as a pill, navigation arrows grouped side by side.
-- Remove unused `Toolbar` component and all associated CSS classes.
-- Show uncommitted files in the commit graph.
-
-## 1.1.2 - 2026-04-15
-
-- Improve find-bar appearance with icon-wrapped inputs and toggle pill styles.
-
-## 1.1.1 - 2026-04-14
-
-- Maintenance release for Marketplace republish.
-
-## 1.1.0 - 2026-04-14
-
-- Add delete local branches modal with multi-select capabilities.
-- Interactive branch selection with "Select All" toggle.
-- Two-step confirmation to prevent accidental deletions.
-- Delete branches button in the commit graph header.
-
-## 1.0.0 - 2026-04-14
-
-- First stable release of Git Graphor.
 - Interactive Git history graph with commit details and native VS Code diff integration.
-- Built-in Git actions for fetch, pull, push, branch creation, and commit from the extension UI.
+- Built-in Git actions for fetch, pull, push, branch creation, and commit directly from the extension interface.
 - Working tree panel for staging, unstaging, and discarding file changes.
-
-## 0.1.0
-
-- Initial extension scaffold
-- Custom Git graph webview with commit details
-- Native diff integration
-- Branch, remote and working tree actions
-- Unit tests for graph layout and Git status/log parsing
+- Redesigned search bar with embedded icon, options grouped in a segmented control, match counter, and navigation arrows.
+- Modal for deleting local branches with multi-select capability and two-step confirmation.
+- Display of uncommitted files in the commit graph.
+- Interactive panels for Commit Details and Commit History with responsive behavior and automatic reopening.
+- Custom webview for the Git graph with support for branch, remote, and working tree actions.
+- Unit tests for graph layout and Git status/log parsing.
