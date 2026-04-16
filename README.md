@@ -24,7 +24,7 @@ Create, delete, checkout and merge branches directly from the graph — no termi
 
 ### Remote Actions
 
-Fetch, pull and push from the toolbar with a single click.
+Fetch, pull and push directly from the Git Graphor panel or using the Command Palette.
 
 ### Working Tree Panel
 
