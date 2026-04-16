@@ -206,16 +206,6 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
         return;
       }
       case 'deleteBranch': {
-        const confirmed = await vscode.window.showWarningMessage(
-          `Delete branch ${message.payload.branchName}?`,
-          { modal: true },
-          'Delete'
-        );
-
-        if (confirmed !== 'Delete') {
-          return;
-        }
-
         await this.executeRepositoryAction('Deleting branch...', async () => {
           await this.repository.deleteBranch(message.payload.repoRoot, message.payload.branchName);
         });
