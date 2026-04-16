@@ -36,7 +36,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const gitWatchers = [
     vscode.workspace.createFileSystemWatcher('**/.git/HEAD'),
     vscode.workspace.createFileSystemWatcher('**/.git/index'),
-    vscode.workspace.createFileSystemWatcher('**/.git/refs/**')
+    vscode.workspace.createFileSystemWatcher('**/.git/refs/**'),
+    vscode.workspace.createFileSystemWatcher('**/.git/worktrees/**')
   ];
 
   for (const watcher of gitWatchers) {

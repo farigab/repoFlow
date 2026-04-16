@@ -14,7 +14,8 @@ import type {
   GraphSnapshot,
   RepoGitConfig,
   StashEntry,
-  WorkingTreeStatus
+  WorkingTreeStatus,
+  WorktreeEntry
 } from '../../core/models/GitModels';
 import type { GitRepository } from '../../core/ports/GitRepository';
 import { EMPTY_TREE } from '../../shared/constants';
@@ -26,7 +27,8 @@ import {
   parseCommitFiles,
   parseCommitLog,
   parseNumstatStats,
-  parseWorkingTreeStatus
+  parseWorkingTreeStatus,
+  parseWorktreeList
 } from './GitParsers';
 
 const execFileAsync = promisify(execFile);
@@ -429,6 +431,38 @@ export class GitCliRepository implements GitRepository {
   public async resolveHeadHash(repoRoot: string): Promise<string> {
     const raw = await this.runGit(repoRoot, ['rev-parse', 'HEAD']);
     return raw.trim();
+  }
+
+  public async listWorktrees(repoRoot: string): Promise<WorktreeEntry[]> {
+    const raw = await this.runGit(repoRoot, ['worktree', 'list', '--porcelain']);
+    return parseWorktreeList(raw);
+  }
+
+  public async addWorktree(repoRoot: string, worktreePath: string, branch: string, createNew: boolean): Promise<void> {
+    const args = ['worktree', 'add'];
+    if (createNew) {
+      args.push('-b', branch);
+    }
+    args.push(worktreePath);
+    if (!createNew) {
+      args.push(branch);
+    }
+    await this.runGit(repoRoot, args);
+    this.graphCache.clear();
+  }
+
+  public async removeWorktree(repoRoot: string, worktreePath: string, force = false): Promise<void> {
+    const args = ['worktree', 'remove'];
+    if (force) {
+      args.push('--force');
+    }
+    args.push(worktreePath);
+    await this.runGit(repoRoot, args);
+    this.graphCache.clear();
+  }
+
+  public async pruneWorktrees(repoRoot: string): Promise<void> {
+    await this.runGit(repoRoot, ['worktree', 'prune']);
   }
 
   private hasDirtyChanges(localChanges: WorkingTreeStatus): boolean {

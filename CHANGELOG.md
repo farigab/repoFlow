@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.4
+
+- Added **Worktree Manager**: create, list, open and remove git worktrees directly from the graph panel.
+  - Supports checking out an existing branch or creating a new one in a separate worktree.
+  - Each linked worktree can be opened in a new VS Code window with one click.
+  - Removing a worktree with uncommitted changes shows an inline force-remove confirmation.
+  - Errors (invalid path, branch already checked out, etc.) are displayed inline in the modal.
+
 ## 1.0.3
 
 - Fixed alignment issue in the commit graph where commit nodes were slightly misaligned with their corresponding rows.

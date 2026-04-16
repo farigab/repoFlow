@@ -1,4 +1,4 @@
-import type { CommitDetail, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, WorkingTreeFile } from '../core/models/GitModels';
+import type { CommitDetail, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, WorkingTreeFile, WorktreeEntry } from '../core/models/GitModels';
 
 export type WebviewToExtensionMessage =
   | { type: 'ready' }
@@ -30,7 +30,11 @@ export type WebviewToExtensionMessage =
   | { type: 'stashChanges'; payload: { repoRoot: string; message?: string; includeUntracked: boolean } }
   | { type: 'applyStash'; payload: { repoRoot: string; ref: string } }
   | { type: 'popStash'; payload: { repoRoot: string; ref: string } }
-  | { type: 'dropStash'; payload: { repoRoot: string; ref: string } };
+  | { type: 'dropStash'; payload: { repoRoot: string; ref: string } }
+  | { type: 'listWorktrees'; payload: { repoRoot: string } }
+  | { type: 'addWorktree'; payload: { repoRoot: string; branch: string; createNew: boolean; worktreePath: string } }
+  | { type: 'removeWorktree'; payload: { repoRoot: string; path: string; force: boolean } }
+  | { type: 'openWorktreeInWindow'; payload: { path: string } };
 
 export type ExtensionToWebviewMessage =
   | { type: 'graphSnapshot'; payload: GraphSnapshot }
@@ -38,4 +42,6 @@ export type ExtensionToWebviewMessage =
   | { type: 'revealCommit'; payload: { commitHash: string } }
   | { type: 'busy'; payload: { value: boolean; label?: string } }
   | { type: 'notification'; payload: { kind: 'info' | 'error'; message: string } }
-  | { type: 'stashList'; payload: { entries: StashEntry[] } };
+  | { type: 'stashList'; payload: { entries: StashEntry[] } }
+  | { type: 'worktreeList'; payload: { entries: WorktreeEntry[] } }
+  | { type: 'worktreeError'; payload: { message: string; path?: string; canForce?: boolean } };

@@ -1,6 +1,6 @@
 # RepoFlow
 
-**RepoFlow** is a Visual Studio Code extension that brings an interactive Git history graph directly into your editor — with native diff integration and Git actions built in, so you never have to leave VS Code.
+**RepoFlow** is a Visual Studio Code extension that brings an interactive Git history graph directly into your editor — with native diff integration, worktree manager and Git actions built in, so you never have to leave VS Code.
 
 ![RepoFlow in action](https://raw.githubusercontent.com/farigab/repoFlow/main/media/repoFlow.gif)
 
@@ -29,6 +29,15 @@ Fetch, pull and push directly from the RepoFlow panel or using the Command Palet
 ### Working Tree Panel
 
 Stage, unstage and discard individual files. View staged, unstaged and conflicted files side by side. Commit with a message without leaving the panel.
+
+### Worktree Manager
+
+Manage multiple simultaneous checkouts of the same repository without switching branches. Open the **Worktree Manager** from the graph toolbar to:
+
+- **List** all linked worktrees with their branch, HEAD hash and path.
+- **Add** a worktree by checking out an existing branch or creating a new one — the target directory path is pre-filled with a sensible default and is fully editable.
+- **Open in new window** — opens any linked worktree as a separate VS Code workspace in a new window instantly.
+- **Remove** a worktree with inline confirmation. If the worktree has uncommitted changes, a force-remove prompt is shown inline before proceeding.
 
 ### Search & Filters
 

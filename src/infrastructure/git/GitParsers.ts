@@ -7,7 +7,8 @@ import type {
   CommitSummary,
   GitRef,
   WorkingTreeFile,
-  WorkingTreeStatus
+  WorkingTreeStatus,
+  WorktreeEntry
 } from '../../core/models/GitModels';
 
 const RECORD_SEPARATOR = '\u001e';
@@ -349,4 +350,49 @@ export function parseNumstatStats(raw: string): CommitStats {
   }
 
   return { insertions, deletions, filesChanged };
+}
+
+/**
+ * Parses the output of `git worktree list --porcelain`.
+ *
+ * Each worktree block is separated by a blank line and looks like:
+ * ```
+ * worktree /abs/path
+ * HEAD <sha1>
+ * branch refs/heads/<name>   ← omitted when detached
+ * [detached]                 ← present when detached
+ * ```
+ * The first block is always the main (primary) worktree.
+ */
+export function parseWorktreeList(raw: string): WorktreeEntry[] {
+  const entries: WorktreeEntry[] = [];
+  const blocks = raw.trim().split(/\r?\n\r?\n/);
+
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    if (!block?.trim()) {
+      continue;
+    }
+
+    let worktreePath = '';
+    let head = '';
+    let branch: string | null = null;
+
+    for (const line of block.split(/\r?\n/)) {
+      if (line.startsWith('worktree ')) {
+        worktreePath = line.slice('worktree '.length).trim();
+      } else if (line.startsWith('HEAD ')) {
+        head = line.slice('HEAD '.length).trim();
+      } else if (line.startsWith('branch ')) {
+        branch = line.slice('branch '.length).trim();
+      }
+      // 'detached' keyword → branch stays null (already the default)
+    }
+
+    if (worktreePath && head) {
+      entries.push({ path: worktreePath, head, branch, isMain: i === 0 });
+    }
+  }
+
+  return entries;
 }

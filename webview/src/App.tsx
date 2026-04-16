@@ -1,5 +1,5 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import type { CommitDetail, CommitFileChange, CommitSummary, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, WorkingTreeFile } from '../../src/core/models/GitModels';
+import type { CommitDetail, CommitFileChange, CommitSummary, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, WorkingTreeFile, WorktreeEntry } from '../../src/core/models/GitModels';
 import type { ExtensionToWebviewMessage } from '../../src/shared/protocol';
 import { CommitDetails } from './components/CommitDetails';
 import { CreatePRModal } from './components/CreatePRModal';
@@ -8,6 +8,7 @@ import { GraphCanvas } from './components/GraphCanvas';
 import { LocalChangesPanel } from './components/LocalChangesPanel';
 import { RepoSettingsModal } from './components/RepoSettingsModal';
 import { StashModal } from './components/StashModal';
+import { WorktreeModal } from './components/WorktreeModal';
 import { useResizableSplit } from './hooks/useResizableSplit';
 import { vscode } from './vscode';
 
@@ -39,6 +40,9 @@ export function App() {
     const [deleteBranchesOpen, setDeleteBranchesOpen] = useState(false);
     const [stashOpen, setStashOpen] = useState(false);
     const [stashes, setStashes] = useState<StashEntry[]>([]);
+    const [worktreeOpen, setWorktreeOpen] = useState(false);
+    const [worktrees, setWorktrees] = useState<WorktreeEntry[]>([]);
+    const [worktreeError, setWorktreeError] = useState<{ message: string; path?: string; canForce?: boolean } | null>(null);
     const [isUncommittedSelected, setIsUncommittedSelected] = useState(false);
     const [isCommitDetailsOpen, setIsCommitDetailsOpen] = useState(false);
     const requestedCommitHashRef = useRef<string | undefined>(undefined);
@@ -85,6 +89,13 @@ export function App() {
                     return;
                 case 'stashList':
                     setStashes(message.payload.entries);
+                    return;
+                case 'worktreeList':
+                    setWorktrees(message.payload.entries);
+                    setWorktreeError(null);
+                    return;
+                case 'worktreeError':
+                    setWorktreeError(message.payload);
                     return;
                 default:
                     return;
@@ -289,6 +300,12 @@ export function App() {
                         }
                         setStashOpen(true);
                     }}
+                    onOpenWorktreeModal={() => {
+                        if (snapshot) {
+                            vscode.postMessage({ type: 'listWorktrees', payload: { repoRoot: snapshot.repoRoot } });
+                        }
+                        setWorktreeOpen(true);
+                    }}
                 />
 
                 {showSidebar ? <div className="resizer" onMouseDown={onDividerMouseDown} /> : null}
@@ -378,6 +395,16 @@ export function App() {
                     snapshot={snapshot}
                     stashes={stashes}
                     onClose={() => setStashOpen(false)}
+                />
+            ) : null}
+            {worktreeOpen && snapshot ? (
+                <WorktreeModal
+                    repoRoot={snapshot.repoRoot}
+                    entries={worktrees}
+                    branches={snapshot.branches}
+                    busy={busy.value}
+                    worktreeError={worktreeError}
+                    onClose={() => { setWorktreeOpen(false); setWorktreeError(null); }}
                 />
             ) : null}
         </main>

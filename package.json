@@ -1,8 +1,8 @@
 {
   "name": "repoflow",
   "displayName": "RepoFlow — Git Tools & Graph",
-  "description": "Interactive Git graph, commit history, diff, stash, blame and pull request manager for Visual Studio Code.",
-  "version": "1.0.3",
+  "description": "Interactive Git graph, commit history, diff, stash, blame, worktree manager and pull request manager for Visual Studio Code.",
+  "version": "1.0.4",
   "publisher": "farigab",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -25,7 +25,8 @@
     "commits",
     "history",
     "diff",
-    "branches"
+    "branches",
+    "worktree"
   ],
   "main": "./dist/extension.js",
   "activationEvents": [

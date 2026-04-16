@@ -8,7 +8,8 @@ import type {
   GraphSnapshot,
   RepoGitConfig,
   StashEntry,
-  WorkingTreeStatus
+  WorkingTreeStatus,
+  WorktreeEntry
 } from '../models/GitModels';
 
 export interface GitRepository {
@@ -47,4 +48,8 @@ export interface GitRepository {
   getBlame(repoRoot: string, relativeFilePath: string): Promise<BlameEntry[]>;
   getCommitStats(repoRoot: string, commitHash: string): Promise<CommitStats>;
   resolveHeadHash(repoRoot: string): Promise<string>;
+  listWorktrees(repoRoot: string): Promise<WorktreeEntry[]>;
+  addWorktree(repoRoot: string, worktreePath: string, branch: string, createNew: boolean): Promise<void>;
+  removeWorktree(repoRoot: string, worktreePath: string, force?: boolean): Promise<void>;
+  pruneWorktrees(repoRoot: string): Promise<void>;
 }

@@ -137,3 +137,14 @@ export interface DiffRequest {
   filePath: string;
   originalPath?: string;
 }
+
+export interface WorktreeEntry {
+  /** Absolute filesystem path of the worktree. */
+  path: string;
+  /** Full SHA-1 of the checked-out HEAD commit. */
+  head: string;
+  /** Full ref name (e.g. refs/heads/main), or null when in detached HEAD state. */
+  branch: string | null;
+  /** True only for the primary (main) worktree. */
+  isMain: boolean;
+}

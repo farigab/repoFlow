@@ -477,6 +477,53 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
         await this.postMessage({ type: 'stashList', payload: { entries } });
         return;
       }
+      case 'listWorktrees': {
+        const worktrees = await this.repository.listWorktrees(message.payload.repoRoot);
+        await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
+        return;
+      }
+      case 'addWorktree': {
+        const { repoRoot, branch, createNew, worktreePath } = message.payload;
+        try {
+          await this.withBusy('Adding worktree...', async () => {
+            await this.repository.addWorktree(repoRoot, worktreePath.trim(), branch, createNew);
+          });
+          const worktrees = await this.repository.listWorktrees(repoRoot);
+          await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
+          this.output.appendLine(`[worktree-add] ${msg}`);
+          await this.postMessage({ type: 'worktreeError', payload: { message: msg } });
+        }
+        return;
+      }
+      case 'removeWorktree': {
+        const { repoRoot, path: worktreePath, force } = message.payload;
+        try {
+          await this.withBusy('Removing worktree...', async () => {
+            await this.repository.removeWorktree(repoRoot, worktreePath, force);
+            await this.repository.pruneWorktrees(repoRoot);
+          });
+          const worktrees = await this.repository.listWorktrees(repoRoot);
+          await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
+          this.output.appendLine(`[worktree-remove] ${msg}`);
+          await this.postMessage({
+            type: 'worktreeError',
+            payload: { message: msg, path: worktreePath, canForce: !force }
+          });
+        }
+        return;
+      }
+      case 'openWorktreeInWindow': {
+        await vscode.commands.executeCommand(
+          'vscode.openFolder',
+          vscode.Uri.file(message.payload.path),
+          { forceNewWindow: true }
+        );
+        return;
+      }
       default:
         return;
     }
