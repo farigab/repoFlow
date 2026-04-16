@@ -109,6 +109,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
       await repository.commit(repoRoot, message.trim());
       await graphViewProvider.refresh();
+    }),
+    // Internal command — invoked from blame hover command URI
+    vscode.commands.registerCommand('gitGraphor.revealCommit', (commitHash: string) => {
+      graphViewProvider.openAndRevealCommit(commitHash);
     })
   );
 }

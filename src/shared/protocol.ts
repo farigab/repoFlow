@@ -35,6 +35,7 @@ export type WebviewToExtensionMessage =
 export type ExtensionToWebviewMessage =
   | { type: 'graphSnapshot'; payload: GraphSnapshot }
   | { type: 'commitDetail'; payload: CommitDetail }
+  | { type: 'revealCommit'; payload: { commitHash: string } }
   | { type: 'busy'; payload: { value: boolean; label?: string } }
   | { type: 'notification'; payload: { kind: 'info' | 'error'; message: string } }
   | { type: 'stashList'; payload: { entries: StashEntry[] } };

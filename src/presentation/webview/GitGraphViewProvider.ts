@@ -17,6 +17,8 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     limit: 200
   };
   private selectedCommitHash?: string;
+  /** Set before openOrReveal() to trigger a scroll-to-commit after next refresh. */
+  private pendingRevealHash?: string;
 
   public constructor(
     private readonly extensionUri: vscode.Uri,
@@ -114,6 +116,18 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     void this.refresh();
   }
 
+  /**
+   * Opens (or reveals) the Git Graphor panel and scrolls to the given commit,
+   * selecting it and opening the detail panel. Called from the blame hover.
+   */
+  public openAndRevealCommit(commitHash: string): void {
+    // openOrReveal() resets selectedCommitHash synchronously, so set ours back
+    // immediately after — refresh() is async and reads it on next microtask.
+    this.openOrReveal();
+    this.selectedCommitHash = commitHash;
+    this.pendingRevealHash = commitHash;
+  }
+
   public async refresh(): Promise<void> {
     if (!this.currentPanel && !this.currentView?.visible) {
       return;
@@ -126,6 +140,11 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
       if (this.selectedCommitHash) {
         const detail = await this.repository.getCommitDetail(snapshot.repoRoot, this.selectedCommitHash);
         await this.postMessage({ type: 'commitDetail', payload: detail });
+      }
+
+      if (this.pendingRevealHash) {
+        await this.postMessage({ type: 'revealCommit', payload: { commitHash: this.pendingRevealHash } });
+        this.pendingRevealHash = undefined;
       }
     });
   }

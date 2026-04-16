@@ -66,6 +66,16 @@ export function App() {
                     setSelectedCommitHash(message.payload.hash);
                     setIsCommitDetailsOpen(true);
                     return;
+                case 'revealCommit': {
+                    const { commitHash } = message.payload;
+                    // commitDetail was already received before this message;
+                    // give React one tick to render the selected row, then scroll to it.
+                    window.setTimeout(() => {
+                        document.querySelector(`[data-hash="${commitHash}"]`)
+                            ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    }, 50);
+                    return;
+                }
                 case 'busy':
                     setBusy(message.payload);
                     return;

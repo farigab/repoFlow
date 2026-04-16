@@ -288,7 +288,12 @@ export class GitBlameController implements vscode.Disposable {
       : '$(loading~spin) Loading stats\u2026';
 
     const ghUrl = buildGitHubCommitUrl(config.remotes, entry.commitHash);
-    const ghLine = ghUrl ? `\n\n[$(link-external) Open on GitHub](${ghUrl})` : '';
+    const ghPart = ghUrl ? `[$(link-external) Open on GitHub](${ghUrl})` : '';
+
+    const revealArgs = encodeURIComponent(JSON.stringify([entry.commitHash]));
+    const revealPart = `[$(git-commit) Show in Git Graphor](command:gitGraphor.revealCommit?${revealArgs})`;
+
+    const linksLine = [ghPart, revealPart].filter(Boolean).join(' \u00a0\u2502\u00a0 ');
 
     const md = new vscode.MarkdownString(
       [
@@ -299,7 +304,8 @@ export class GitBlameController implements vscode.Disposable {
         `$(calendar) *${absDate}*`,
         '',
         statsLine,
-        ghLine,
+        '',
+        linksLine,
       ].join('\n'),
       /* supportThemeIcons */ true,
     );
