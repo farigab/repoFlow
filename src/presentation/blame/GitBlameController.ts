@@ -291,7 +291,7 @@ export class GitBlameController implements vscode.Disposable {
     const ghPart = ghUrl ? `[$(link-external) Open on GitHub](${ghUrl})` : '';
 
     const revealArgs = encodeURIComponent(JSON.stringify([entry.commitHash]));
-    const revealPart = `[$(git-commit) Show in Git Graphor](command:gitGraphor.revealCommit?${revealArgs})`;
+    const revealPart = `[$(git-commit) Show in RepoFlow](command:repoFlow.revealCommit?${revealArgs})`;
 
     const linksLine = [ghPart, revealPart].filter(Boolean).join(' \u00a0\u2502\u00a0 ');
 

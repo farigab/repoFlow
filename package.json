@@ -1,7 +1,7 @@
 {
-  "name": "gitgraphor",
-  "displayName": "Git Graphor",
-  "description": "Interactive Git graph explorer for Visual Studio Code with native diff integration.",
+  "name": "repoflow",
+  "displayName": "RepoFlow — Git Tools & Graph",
+  "description": "Interactive Git graph, commit history, diff, stash, blame and pull request manager for Visual Studio Code.",
   "version": "1.0.0",
   "publisher": "farigab",
   "license": "MIT",
@@ -34,78 +34,78 @@
   "contributes": {
     "commands": [
       {
-        "command": "gitGraphor.openView",
-        "title": "Git Graphor: Open Graph",
+        "command": "repoFlow.openView",
+        "title": "RepoFlow: Open Graph",
         "icon": {
           "light": "media/icon-mono-light.svg",
           "dark": "media/icon-mono.svg"
         }
       },
       {
-        "command": "gitGraphor.refresh",
-        "title": "Git Graphor: Refresh"
+        "command": "repoFlow.refresh",
+        "title": "RepoFlow: Refresh"
       },
       {
-        "command": "gitGraphor.fetch",
-        "title": "Git Graphor: Fetch"
+        "command": "repoFlow.fetch",
+        "title": "RepoFlow: Fetch"
       },
       {
-        "command": "gitGraphor.pull",
-        "title": "Git Graphor: Pull"
+        "command": "repoFlow.pull",
+        "title": "RepoFlow: Pull"
       },
       {
-        "command": "gitGraphor.push",
-        "title": "Git Graphor: Push"
+        "command": "repoFlow.push",
+        "title": "RepoFlow: Push"
       },
       {
-        "command": "gitGraphor.createBranch",
-        "title": "Git Graphor: Create Branch"
+        "command": "repoFlow.createBranch",
+        "title": "RepoFlow: Create Branch"
       },
       {
-        "command": "gitGraphor.commitChanges",
-        "title": "Git Graphor: Commit Changes"
+        "command": "repoFlow.commitChanges",
+        "title": "RepoFlow: Commit Changes"
       }
     ],
     "menus": {
       "scm/title": [
         {
-          "command": "gitGraphor.openView",
+          "command": "repoFlow.openView",
           "group": "navigation@2"
         }
       ],
       "view/title": [
         {
-          "command": "gitGraphor.refresh",
-          "when": "view == gitGraphor.graphView",
+          "command": "repoFlow.refresh",
+          "when": "view == repoFlow.graphView",
           "group": "navigation"
         },
         {
-          "command": "gitGraphor.fetch",
-          "when": "view == gitGraphor.graphView",
+          "command": "repoFlow.fetch",
+          "when": "view == repoFlow.graphView",
           "group": "navigation@1"
         }
       ],
       "commandPalette": [
         {
-          "command": "gitGraphor.openView"
+          "command": "repoFlow.openView"
         },
         {
-          "command": "gitGraphor.refresh"
+          "command": "repoFlow.refresh"
         },
         {
-          "command": "gitGraphor.fetch"
+          "command": "repoFlow.fetch"
         },
         {
-          "command": "gitGraphor.pull"
+          "command": "repoFlow.pull"
         },
         {
-          "command": "gitGraphor.push"
+          "command": "repoFlow.push"
         },
         {
-          "command": "gitGraphor.createBranch"
+          "command": "repoFlow.createBranch"
         },
         {
-          "command": "gitGraphor.commitChanges"
+          "command": "repoFlow.commitChanges"
         }
       ]
     }
@@ -121,10 +121,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/farigab/gitgraphor"
+    "url": "https://github.com/farigab/repoFlow"
   },
   "bugs": {
-    "url": "https://github.com/farigab/gitgraphor/issues"
+    "url": "https://github.com/farigab/repoFlow/issues"
   },
   "dependencies": {
     "@vscode/codicons": "^0.0.45",

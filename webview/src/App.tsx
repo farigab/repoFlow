@@ -130,7 +130,7 @@ export function App() {
         return () => window.removeEventListener('click', closeMenu);
     }, []);
 
-    const assets = useMemo(() => window.__GITGRAPHOR_ASSETS__ ?? {}, []);
+    const assets = useMemo(() => window.__REPOFLOW_ASSETS__ ?? {}, []);
     const { leftPercent, containerRef, onDividerMouseDown } = useResizableSplit(62);
     const showSidebar = isUncommittedSelected || isCommitDetailsOpen;
 
@@ -254,8 +254,8 @@ export function App() {
         return (
             <main className="shell shell--loading">
                 <div className="loading-card panel">
-                    {assets.hero ? <img className="loading-card__hero" src={assets.hero} alt="Git Graphor" /> : null}
-                    <h1>Git Graphor</h1>
+                    {assets.hero ? <img className="loading-card__hero" src={assets.hero} alt="RepoFlow" /> : null}
+                    <h1>RepoFlow</h1>
                     <p>Loading repository graph...</p>
                 </div>
             </main>

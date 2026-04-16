@@ -5,8 +5,8 @@ import { createNonce } from '../../shared/nonce';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '../../shared/protocol';
 
 export class GitGraphViewProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = 'gitGraphor.graphPanel';
-  public static readonly viewId = 'gitGraphor.graphView';
+  public static readonly viewType = 'repoFlow.graphPanel';
+  public static readonly viewId = 'repoFlow.graphView';
 
   private currentPanel?: vscode.WebviewPanel;
   private currentView?: vscode.WebviewView;
@@ -78,7 +78,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
     const panel = vscode.window.createWebviewPanel(
       GitGraphViewProvider.viewType,
-      'GitGraphor',
+      'RepoFlow',
       vscode.ViewColumn.One,
       {
         enableScripts: true,
@@ -117,7 +117,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
-   * Opens (or reveals) the Git Graphor panel and scrolls to the given commit,
+   * Opens (or reveals) the RepoFlow panel and scrolls to the given commit,
    * selecting it and opening the detail panel. Called from the blame hover.
    */
   public openAndRevealCommit(commitHash: string): void {
@@ -333,7 +333,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
           await this.postNotification('error', 'Invalid commit hash.');
           return;
         }
-        const terminal = vscode.window.createTerminal({ cwd: message.payload.repoRoot, name: 'Git Graphor' });
+        const terminal = vscode.window.createTerminal({ cwd: message.payload.repoRoot, name: 'RepoFlow' });
         terminal.show();
         terminal.sendText(`git show --stat ${hash}`, true);
         return;
@@ -582,12 +582,12 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     <meta http-equiv="Content-Security-Policy" content="${csp}" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="${styleUri}" />
-    <title>Git Graphor</title>
+    <title>RepoFlow</title>
   </head>
   <body>
     <div id="root"></div>
     <script nonce="${nonce}">
-      window.__GITGRAPHOR_ASSETS__ = {
+      window.__REPOFLOW_ASSETS__ = {
         hero: '${iconUri}'
       };
     </script>

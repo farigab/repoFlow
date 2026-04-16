@@ -8,7 +8,7 @@ interface GitDocumentQuery {
 }
 
 export class GitContentProvider implements vscode.TextDocumentContentProvider {
-  public static readonly scheme = 'gitgraphor';
+  public static readonly scheme = 'repoFlow';
 
   private readonly onDidChangeEmitter = new vscode.EventEmitter<vscode.Uri>();
   public readonly onDidChange = this.onDidChangeEmitter.event;

@@ -8,7 +8,7 @@ import { GitGraphViewProvider } from './presentation/webview/GitGraphViewProvide
 import { EMPTY_TREE } from './shared/constants';
 
 export function activate(context: vscode.ExtensionContext): void {
-  const output = vscode.window.createOutputChannel('Git Graphor');
+  const output = vscode.window.createOutputChannel('RepoFlow');
 
   const repository = new GitCliRepository(output, async (request) => {
     await openNativeDiff(request, contentProvider);
@@ -59,28 +59,28 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('gitGraphor.openView', () => {
+    vscode.commands.registerCommand('repoFlow.openView', () => {
       graphViewProvider.openOrReveal();
     }),
-    vscode.commands.registerCommand('gitGraphor.refresh', async () => {
+    vscode.commands.registerCommand('repoFlow.refresh', async () => {
       await graphViewProvider.refresh();
     }),
-    vscode.commands.registerCommand('gitGraphor.fetch', async () => {
+    vscode.commands.registerCommand('repoFlow.fetch', async () => {
       const repoRoot = await repository.resolveRepositoryRoot();
       await repository.fetch(repoRoot);
       await graphViewProvider.refresh();
     }),
-    vscode.commands.registerCommand('gitGraphor.pull', async () => {
+    vscode.commands.registerCommand('repoFlow.pull', async () => {
       const repoRoot = await repository.resolveRepositoryRoot();
       await repository.pull(repoRoot);
       await graphViewProvider.refresh();
     }),
-    vscode.commands.registerCommand('gitGraphor.push', async () => {
+    vscode.commands.registerCommand('repoFlow.push', async () => {
       const repoRoot = await repository.resolveRepositoryRoot();
       await repository.push(repoRoot);
       await graphViewProvider.refresh();
     }),
-    vscode.commands.registerCommand('gitGraphor.createBranch', async () => {
+    vscode.commands.registerCommand('repoFlow.createBranch', async () => {
       const repoRoot = await repository.resolveRepositoryRoot();
       const name = await vscode.window.showInputBox({
         title: 'Create Branch',
@@ -95,7 +95,7 @@ export function activate(context: vscode.ExtensionContext): void {
       await repository.createBranch(repoRoot, name.trim());
       await graphViewProvider.refresh();
     }),
-    vscode.commands.registerCommand('gitGraphor.commitChanges', async () => {
+    vscode.commands.registerCommand('repoFlow.commitChanges', async () => {
       const repoRoot = await repository.resolveRepositoryRoot();
       const message = await vscode.window.showInputBox({
         title: 'Commit Changes',
@@ -111,7 +111,7 @@ export function activate(context: vscode.ExtensionContext): void {
       await graphViewProvider.refresh();
     }),
     // Internal command — invoked from blame hover command URI
-    vscode.commands.registerCommand('gitGraphor.revealCommit', (commitHash: string) => {
+    vscode.commands.registerCommand('repoFlow.revealCommit', (commitHash: string) => {
       graphViewProvider.openAndRevealCommit(commitHash);
     })
   );

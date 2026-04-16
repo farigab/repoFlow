@@ -1,8 +1,8 @@
-# Git Graphor
+# RepoFlow
 
-**Git Graphor** is a Visual Studio Code extension that brings an interactive Git history graph directly into your editor — with native diff integration and Git actions built in, so you never have to leave VS Code.
+**RepoFlow** is a Visual Studio Code extension that brings an interactive Git history graph directly into your editor — with native diff integration and Git actions built in, so you never have to leave VS Code.
 
-![Git Graphor in action](https://raw.githubusercontent.com/farigab/gitgraphor/main/media/gitgraphor.gif)
+![RepoFlow in action](https://raw.githubusercontent.com/farigab/repoFlow/main/media/repoFlow.gif)
 
 ## Features
 
@@ -24,7 +24,7 @@ Create, delete, checkout and merge branches directly from the graph — no termi
 
 ### Remote Actions
 
-Fetch, pull and push directly from the Git Graphor panel or using the Command Palette.
+Fetch, pull and push directly from the RepoFlow panel or using the Command Palette.
 
 ### Working Tree Panel
 
@@ -51,13 +51,13 @@ Right-click any commit to: checkout, cherry-pick, create a branch from it, copy 
 
 | Command | Description |
 | --- | --- |
-| `Git Graphor: Open Graph` | Opens the Git Graphor panel |
-| `Git Graphor: Refresh` | Reloads the graph |
-| `Git Graphor: Fetch` | Fetches from remote |
-| `Git Graphor: Pull` | Pulls from remote |
-| `Git Graphor: Push` | Pushes to remote |
-| `Git Graphor: Create Branch` | Creates a new branch |
-| `Git Graphor: Commit Changes` | Commits staged changes |
+| `RepoFlow: Open Graph` | Opens the RepoFlow panel |
+| `RepoFlow: Refresh` | Reloads the graph |
+| `RepoFlow: Fetch` | Fetches from remote |
+| `RepoFlow: Pull` | Pulls from remote |
+| `RepoFlow: Push` | Pushes to remote |
+| `RepoFlow: Create Branch` | Creates a new branch |
+| `RepoFlow: Commit Changes` | Commits staged changes |
 
 All commands are also accessible from the Command Palette (`Ctrl+Shift+P`).
 
@@ -66,11 +66,11 @@ All commands are also accessible from the Command Palette (`Ctrl+Shift+P`).
 ## Getting Started
 
 1. Open a Git repository in VS Code.
-2. Click the **Git Graphor** icon in the Source Control title bar, or run `Git Graphor: Open Graph` from the Command Palette.
+2. Click the **RepoFlow** icon in the Source Control title bar, or run `RepoFlow: Open Graph` from the Command Palette.
 3. Browse commits, click to see details, and use the toolbar for branch and remote actions.
 
 ---
 
 ## Privacy
 
-Git Graphor uses the local Git CLI only. No data is sent to any remote service and no credentials are stored or read by the extension.
+RepoFlow uses the local Git CLI only. No data is sent to any remote service and no credentials are stored or read by the extension.

@@ -2,7 +2,7 @@ import type { WebviewToExtensionMessage } from '../../src/shared/protocol';
 
 declare global {
   interface Window {
-    __GITGRAPHOR_ASSETS__?: {
+    __REPOFLOW_ASSETS__?: {
       hero?: string;
     };
   }
