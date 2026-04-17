@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { DiffRequest } from './core/models/GitModels';
 import { GitCliRepository } from './infrastructure/git/GitCliRepository';
 import { GitBlameController } from './presentation/blame/GitBlameController';
+import { BranchTreeDataProvider, BranchTreeItem } from './presentation/branches/BranchTreeDataProvider';
 import { GitContentProvider } from './presentation/diff/GitContentProvider';
 import { GitGraphViewProvider } from './presentation/webview/GitGraphViewProvider';
 import { EMPTY_TREE } from './shared/constants';
@@ -24,6 +25,14 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const graphViewProvider = new GitGraphViewProvider(context.extensionUri, repository, output, repoStatusBar);
   const blameController = new GitBlameController(repository, output);
+  const branchTreeProvider = new BranchTreeDataProvider(repository);
+
+  const branchTreeView = vscode.window.createTreeView('repoFlow.branchesView', {
+    treeDataProvider: branchTreeProvider,
+    showCollapseAll: true
+  });
+
+  context.subscriptions.push(branchTreeView);
 
   let refreshTimer: NodeJS.Timeout | undefined;
   const scheduleGraphRefresh = (): void => {
@@ -33,6 +42,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     refreshTimer = setTimeout(() => {
       blameController.invalidateCache();
+      branchTreeProvider.refresh();
       void graphViewProvider.refresh().catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
         output.appendLine(`[watcher-error] ${message}`);
@@ -246,6 +256,41 @@ export function activate(context: vscode.ExtensionContext): void {
     // Internal command — invoked from blame hover command URI
     vscode.commands.registerCommand('repoFlow.revealCommit', (commitHash: string) => {
       graphViewProvider.openAndRevealCommit(commitHash);
+    }),
+    // Branch tree view commands
+    vscode.commands.registerCommand('repoFlow.branches.refresh', () => {
+      branchTreeProvider.refresh();
+    }),
+    vscode.commands.registerCommand('repoFlow.branches.checkout', async (item: BranchTreeItem) => {
+      if (!item?.branch) return;
+      const repoRoot = await repository.resolveRepositoryRoot();
+      await repository.checkout(repoRoot, item.branch.shortName);
+      branchTreeProvider.refresh();
+      await graphViewProvider.refresh();
+    }),
+    vscode.commands.registerCommand('repoFlow.branches.delete', async (item: BranchTreeItem) => {
+      if (!item?.branch) return;
+      if (item.branch.current) {
+        void vscode.window.showWarningMessage(`Cannot delete the currently checked-out branch '${item.branch.shortName}'.`);
+        return;
+      }
+      const answer = await vscode.window.showWarningMessage(
+        `Delete branch '${item.branch.shortName}'?`,
+        { modal: true },
+        'Delete'
+      );
+      if (answer !== 'Delete') return;
+      const repoRoot = await repository.resolveRepositoryRoot();
+      await repository.deleteBranch(repoRoot, item.branch.shortName);
+      branchTreeProvider.refresh();
+      await graphViewProvider.refresh();
+    }),
+    vscode.commands.registerCommand('repoFlow.branches.merge', async (item: BranchTreeItem) => {
+      if (!item?.branch) return;
+      const repoRoot = await repository.resolveRepositoryRoot();
+      await repository.merge(repoRoot, item.branch.shortName);
+      branchTreeProvider.refresh();
+      await graphViewProvider.refresh();
     })
   );
 }
