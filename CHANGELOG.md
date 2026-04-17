@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.2
+
+- **Fix: Checking out a remote branch no longer enters detached HEAD**: when checking out a remote branch (e.g. `origin/feat/changes`) from the branch tree, git now receives only the local name (`feat/changes`), correctly creating or switching to the local tracking branch instead of pointing to a bare commit.
+- **Fix: `feat/` subfolders (and similar) now appear correctly under the Remote group**: the branch tree hierarchical grouping is now recursive. Branches such as `origin/feat/changes` produce the full hierarchy **Remote → origin → feat → changes** at any nesting depth.
+
 ## 1.1.1
 
 - **Branch Tree View in Source Control**: a new collapsible **BRANCHES** section now appears in the Source Control sidebar (below REPOSITORIES / CHANGES), displaying all local and remote branches organised hierarchically by prefix.
