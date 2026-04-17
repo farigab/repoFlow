@@ -286,7 +286,15 @@ export function activate(context: vscode.ExtensionContext): void {
       );
       if (answer !== 'Delete') return;
       const repoRoot = await repository.resolveRepositoryRoot();
-      await repository.deleteBranch(repoRoot, item.branch.shortName);
+      if (item.branch.remote) {
+        // Remote branch: extract remote name and branch name from shortName (e.g. "origin/feat/changes")
+        const slashIdx = item.branch.shortName.indexOf('/');
+        const remoteName = item.branch.shortName.slice(0, slashIdx);
+        const branchName = item.branch.shortName.slice(slashIdx + 1);
+        await repository.deleteRemoteBranch(repoRoot, remoteName, branchName);
+      } else {
+        await repository.deleteBranch(repoRoot, item.branch.shortName);
+      }
       branchTreeProvider.refresh();
       await graphViewProvider.refresh();
     }),

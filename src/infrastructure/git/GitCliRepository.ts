@@ -330,6 +330,11 @@ export class GitCliRepository implements GitRepository {
     this.graphCache.clear();
   }
 
+  public async deleteRemoteBranch(repoRoot: string, remote: string, name: string): Promise<void> {
+    await this.runGit(repoRoot, ['push', remote, '--delete', name]);
+    this.graphCache.clear();
+  }
+
   public async checkout(repoRoot: string, ref: string): Promise<void> {
     await this.runGit(repoRoot, ['checkout', ref]);
     this.graphCache.clear();
