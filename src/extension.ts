@@ -86,12 +86,27 @@ export function activate(context: vscode.ExtensionContext): void {
 
       const branches = await repository.getBranches(repoRoot);
       const localBranches = branches.filter((b) => !b.remote);
+      const remoteBranches = branches.filter((b) => b.remote);
       const currentBranch = localBranches.find((b) => b.current);
 
-      const branchItems = localBranches.map((b) => ({
+      const localItems = localBranches.map((b) => ({
         label: b.shortName,
-        description: b.current ? '(current)' : undefined
+        description: b.current ? '(current)' : undefined,
+        kind: vscode.QuickPickItemKind.Default as number
       }));
+
+      const remoteItems = remoteBranches.map((b) => ({
+        label: b.shortName,
+        description: undefined as string | undefined,
+        kind: vscode.QuickPickItemKind.Default as number
+      }));
+
+      const branchItems = [
+        { label: 'Local', kind: vscode.QuickPickItemKind.Separator, description: undefined },
+        ...localItems,
+        { label: 'Remote', kind: vscode.QuickPickItemKind.Separator, description: undefined },
+        ...remoteItems
+      ];
 
       const fromBranch = await vscode.window.showQuickPick(branchItems, {
         title: 'Select Source Branch',
