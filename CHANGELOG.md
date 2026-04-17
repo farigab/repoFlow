@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.3
+
+- **feat: Delete remote branch support**: added `deleteRemoteBranch` method to the `GitRepository` interface and implemented it in `GitCliRepository`, enabling remote branch deletion directly from the branch tree view.
+
 ## 1.1.2
 
 - **Fix: Checking out a remote branch no longer enters detached HEAD**: when checking out a remote branch (e.g. `origin/feat/changes`) from the branch tree, git now receives only the local name (`feat/changes`), correctly creating or switching to the local tracking branch instead of pointing to a bare commit.
