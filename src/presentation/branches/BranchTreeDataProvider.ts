@@ -26,6 +26,7 @@ export class BranchTreeItem extends vscode.TreeItem {
   constructor(opts: {
     kind: 'branch';
     branch: BranchSummary;
+    displayLabel?: string;
   });
   constructor(opts: {
     kind: ItemKind;
@@ -33,12 +34,15 @@ export class BranchTreeItem extends vscode.TreeItem {
     icon?: string;
     children?: BranchTreeItem[];
     branch?: BranchSummary;
+    displayLabel?: string;
   }) {
     if (opts.kind === 'branch') {
       const b = opts.branch!;
-      const displayName = b.shortName.includes('/')
-        ? b.shortName.slice(b.shortName.indexOf('/') + 1)
-        : b.shortName;
+      const displayName = opts.displayLabel ?? (
+        b.shortName.includes('/')
+          ? b.shortName.slice(b.shortName.indexOf('/') + 1)
+          : b.shortName
+      );
 
       super(
         displayName,
@@ -154,16 +158,28 @@ export class BranchTreeDataProvider implements vscode.TreeDataProvider<BranchTre
   ): BranchTreeItem | undefined {
     if (branches.length === 0) return undefined;
 
-    // Group by prefix (first segment before '/')
-    const byPrefix = new Map<string, BranchSummary[]>();
+    const children = this.buildChildItems(branches, 0);
+    const group = new BranchTreeItem({ kind: 'root-group', label, icon, children });
+    this.childrenMap.set(group, children);
+    return group;
+  }
+
+  /**
+   * Recursively group branches by path segments, starting at character offset `offset`
+   * within each branch's shortName. Branches whose remaining name (after `offset`) still
+   * contain a '/' are placed under a prefix-folder for the next segment.
+   */
+  private buildChildItems(branches: BranchSummary[], offset: number): BranchTreeItem[] {
+    const byNextSegment = new Map<string, BranchSummary[]>();
     const ungrouped: BranchSummary[] = [];
 
     for (const b of branches) {
-      const slashIdx = b.shortName.indexOf('/');
+      const remaining = b.shortName.slice(offset);
+      const slashIdx = remaining.indexOf('/');
       if (slashIdx !== -1) {
-        const prefix = b.shortName.slice(0, slashIdx);
-        if (!byPrefix.has(prefix)) byPrefix.set(prefix, []);
-        byPrefix.get(prefix)!.push(b);
+        const segment = remaining.slice(0, slashIdx);
+        if (!byNextSegment.has(segment)) byNextSegment.set(segment, []);
+        byNextSegment.get(segment)!.push(b);
       } else {
         ungrouped.push(b);
       }
@@ -172,11 +188,13 @@ export class BranchTreeDataProvider implements vscode.TreeDataProvider<BranchTre
     const children: BranchTreeItem[] = [];
 
     // Prefix folders first (sorted alphabetically)
-    const sortedPrefixes = [...byPrefix.keys()].sort((a, b) => a.localeCompare(b));
-    for (const prefix of sortedPrefixes) {
-      const branchItems = byPrefix.get(prefix)!.map((b) => new BranchTreeItem({ kind: 'branch', branch: b }));
-      const folder = new BranchTreeItem({ kind: 'prefix-folder', label: prefix, children: branchItems });
-      this.childrenMap.set(folder, branchItems);
+    const sortedSegments = [...byNextSegment.keys()].sort((a, b) => a.localeCompare(b));
+    for (const segment of sortedSegments) {
+      const subBranches = byNextSegment.get(segment)!;
+      // +1 for the '/' separator
+      const subChildren = this.buildChildItems(subBranches, offset + segment.length + 1);
+      const folder = new BranchTreeItem({ kind: 'prefix-folder', label: segment, children: subChildren });
+      this.childrenMap.set(folder, subChildren);
       children.push(folder);
     }
 
@@ -187,12 +205,11 @@ export class BranchTreeDataProvider implements vscode.TreeDataProvider<BranchTre
       return a.shortName.localeCompare(b.shortName);
     });
     for (const b of sortedUngrouped) {
-      children.push(new BranchTreeItem({ kind: 'branch', branch: b }));
+      const displayLabel = b.shortName.slice(offset);
+      children.push(new BranchTreeItem({ kind: 'branch', branch: b, displayLabel }));
     }
 
-    const group = new BranchTreeItem({ kind: 'root-group', label, icon, children });
-    this.childrenMap.set(group, children);
-    return group;
+    return children;
   }
 
   private findChildren(element: BranchTreeItem): BranchTreeItem[] {

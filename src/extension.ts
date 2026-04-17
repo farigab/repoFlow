@@ -264,7 +264,12 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('repoFlow.branches.checkout', async (item: BranchTreeItem) => {
       if (!item?.branch) return;
       const repoRoot = await repository.resolveRepositoryRoot();
-      await repository.checkout(repoRoot, item.branch.shortName);
+      // For remote branches (e.g. origin/feat/changes), strip the remote name so git can
+      // create/switch to the local tracking branch instead of entering detached HEAD.
+      const refToCheckout = item.branch.remote
+        ? item.branch.shortName.slice(item.branch.shortName.indexOf('/') + 1)
+        : item.branch.shortName;
+      await repository.checkout(repoRoot, refToCheckout);
       branchTreeProvider.refresh();
       await graphViewProvider.refresh();
     }),
