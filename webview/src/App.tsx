@@ -63,7 +63,7 @@ export function App() {
                     setFilters(message.payload.filters);
                     return;
                 case 'commitDetail':
-                    if (!requestedCommitHashRef.current || requestedCommitHashRef.current !== message.payload.hash) {
+                    if (requestedCommitHashRef.current && requestedCommitHashRef.current !== message.payload.hash) {
                         return;
                     }
                     setSelectedCommit(message.payload);
