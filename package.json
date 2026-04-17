@@ -2,7 +2,7 @@
   "name": "repoflow",
   "displayName": "RepoFlow — Git Tools & Graph",
   "description": "Interactive Git graph, commit history, diff, stash, blame, worktree manager and pull request manager for Visual Studio Code.",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "publisher": "farigab",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -37,10 +37,7 @@
       {
         "command": "repoFlow.openView",
         "title": "RepoFlow: Open Graph",
-        "icon": {
-          "light": "media/icon-mono-light.svg",
-          "dark": "media/icon-mono.svg"
-        }
+        "icon": "$(git-branch)"
       },
       {
         "command": "repoFlow.refresh",
@@ -60,18 +57,26 @@
       },
       {
         "command": "repoFlow.createBranch",
-        "title": "RepoFlow: Create Branch"
+        "title": "RepoFlow: Create Branch",
+        "icon": "$(add)"
       },
       {
         "command": "repoFlow.commitChanges",
-        "title": "RepoFlow: Commit Changes"
+        "title": "RepoFlow: Commit Changes",
+        "icon": "$(check)"
       }
     ],
     "menus": {
       "scm/title": [
         {
           "command": "repoFlow.openView",
+          "when": "scmProvider == git",
           "group": "navigation@2"
+        },
+        {
+          "command": "repoFlow.createBranch",
+          "when": "scmProvider == git",
+          "group": "navigation@3"
         }
       ],
       "view/title": [

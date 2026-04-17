@@ -83,9 +83,45 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand('repoFlow.createBranch', async () => {
       const repoRoot = await repository.resolveRepositoryRoot();
+
+      const branches = await repository.getBranches(repoRoot);
+      const localBranches = branches.filter((b) => !b.remote);
+      const currentBranch = localBranches.find((b) => b.current);
+
+      const branchItems = localBranches.map((b) => ({
+        label: b.shortName,
+        description: b.current ? '(current)' : undefined
+      }));
+
+      const fromBranch = await vscode.window.showQuickPick(branchItems, {
+        title: 'Select Source Branch',
+        placeHolder: currentBranch ? `Current: ${currentBranch.shortName}` : 'Choose the branch to create from',
+        ignoreFocusOut: true
+      });
+
+      if (!fromBranch) {
+        return;
+      }
+
+      const branchType = await vscode.window.showQuickPick([
+        { label: 'Feature', description: 'feat/' },
+        { label: 'Hotfix', description: 'hotfix/' },
+        { label: 'Bugfix', description: 'bugfix/' },
+        { label: 'Release', description: 'release/' },
+        { label: 'Other', description: '' }
+      ], {
+        title: 'Select Branch Type',
+        placeHolder: 'Choose a branch type',
+        ignoreFocusOut: true
+      });
+
+      if (!branchType) {
+        return;
+      }
+
       const name = await vscode.window.showInputBox({
         title: 'Create Branch',
-        prompt: 'New branch name',
+        prompt: `Enter branch name (prefix: ${branchType.description}, from: ${fromBranch.label})`,
         ignoreFocusOut: true
       });
 
@@ -93,7 +129,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      await repository.createBranch(repoRoot, name.trim());
+      await repository.createBranch(repoRoot, `${branchType.description}${name.trim()}`, fromBranch.label);
       await graphViewProvider.refresh();
     }),
     vscode.commands.registerCommand('repoFlow.commitChanges', async () => {

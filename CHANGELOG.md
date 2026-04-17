@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.7
+
+- **Create Branch button in SCM title bar**: new branch creation button (`+`) now appears next to the "Open Graph" button in Source Control, with visibility synced to the native Git provider.
+- **Branch source selection**: the "Create Branch" flow now prompts you to pick a source branch before choosing the type and name, and passes it as `fromRef` to `git branch`.
+- **Commit Changes button in SCM title bar**: added icon for the commit command.
+
 ## 1.0.6
 
 - UI adjustments: removed icon headers from modals.
