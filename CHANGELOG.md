@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.6
+
+- UI adjustments: removed icon headers from modals.
+
 ## 1.0.5
 
 - **Worktree dirty indicator**: each worktree row now shows an amber `●` badge when there are uncommitted changes — no need to open the worktree to check its status.
