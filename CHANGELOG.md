@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.1
+
+- **Branch Tree View in Source Control**: a new collapsible **BRANCHES** section now appears in the Source Control sidebar (below REPOSITORIES / CHANGES), displaying all local and remote branches organised hierarchically by prefix.
+  - Branches with a `/` in their name (e.g. `feat/login`, `hotfix/crash`) are automatically grouped under a named folder (`feat`, `hotfix`, etc.).
+  - Branches without a prefix remain flat at the root of the Local or Remote group.
+  - The currently checked-out branch is highlighted with a green icon and a `●` badge.
+  - Upstream tracking info (e.g. `ahead 2 · behind 1`) is shown as secondary text beside each branch.
+  - **Inline Checkout** button on every branch row.
+  - **Right-click context menu** with Checkout, Merge into current, and Delete (with confirmation dialog).
+  - A **Refresh** button in the view title bar forces an immediate update.
+  - The tree refreshes automatically whenever `.git/refs/**` changes — the same watcher that drives the commit graph.
+
 ## 1.1.0
 
 - UI enhancements
