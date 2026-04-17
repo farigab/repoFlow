@@ -1,6 +1,15 @@
 # Changelog
 
-## 1.0.4
+## 1.0.5
+
+- **Worktree dirty indicator**: each worktree row now shows an amber `●` badge when there are uncommitted changes — no need to open the worktree to check its status.
+- **Detailed worktree status**: staged file count, unstaged/untracked count, commits ahead and commits behind upstream are shown as inline pills per worktree entry.
+- **Reveal in Explorer**: new button per worktree row that opens the worktree directory in the OS file explorer.
+- **Copy path to clipboard**: new button per worktree row that copies the absolute worktree path, ready to paste in a terminal.
+- **Lock / Unlock worktree**: lock icon button toggles `git worktree lock / unlock` on each row, preventing accidental removal. Locked worktrees have the remove button disabled.
+- **Move / Rename worktree**: edit icon button expands an inline path input that calls `git worktree move` on confirm, allowing renaming or relocating without recreating the worktree.
+- **Detached HEAD worktree**: third creation mode "Commit hash" in the Add Worktree form — creates a detached-HEAD checkout of a specific commit or tag via `git worktree add --detach`.
+- **Worktree head badges in the commit graph**: commits that are the current HEAD of a linked (non-main) worktree now display an amber hexagon outline directly on their graph node, similar to how GitLens marks worktree positions.
 
 - Added **Worktree Manager**: create, list, open and remove git worktrees directly from the graph panel.
   - Supports checking out an existing branch or creating a new one in a separate worktree.
