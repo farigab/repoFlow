@@ -52,10 +52,7 @@ export function CreatePRModal({ snapshot, onClose }: CreatePRModalProps) {
         <div className="modal-backdrop" onClick={handleBackdropClick}>
             <div className="modal" role="dialog" aria-modal="true" aria-label="Create Pull Request">
                 <header className="modal__header">
-                    <h2>
-                        <i className="codicon codicon-git-pull-request" aria-hidden="true" style={{ marginRight: '0.45rem' }} />
-                        Create Pull Request
-                    </h2>
+                    <h2>Create Pull Request</h2>
                     <button type="button" className="modal__close" onClick={onClose} aria-label="Close">
                         <i className="codicon codicon-close" aria-hidden="true" />
                     </button>

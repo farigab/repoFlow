@@ -86,10 +86,7 @@ export function StashModal({ snapshot, stashes, onClose }: StashModalProps) {
         <div className="modal-backdrop" onClick={handleBackdropClick}>
             <div className="modal stash-modal" role="dialog" aria-modal="true" aria-label="Git Stash">
                 <header className="modal__header">
-                    <h2>
-                        <i className="codicon codicon-archive" aria-hidden="true" />
-                        Git Stash
-                    </h2>
+                    <h2>Git Stash</h2>
                     <button type="button" className="modal__close" onClick={onClose} aria-label="Close">
                         <i className="codicon codicon-close" aria-hidden="true" />
                     </button>

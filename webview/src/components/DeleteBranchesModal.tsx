@@ -64,10 +64,7 @@ export function DeleteBranchesModal({ snapshot, onClose }: DeleteBranchesModalPr
             <div className="modal-backdrop" onClick={handleBackdropClick}>
                 <div className="modal" role="dialog" aria-modal="true" aria-label="Confirm Delete Branches">
                     <header className="modal__header">
-                        <h2>
-                            <i className="codicon codicon-trash" aria-hidden="true" style={{ marginRight: '0.45rem' }} />
-                            Confirm Delete
-                        </h2>
+                        <h2>Confirm Delete</h2>
                         <button type="button" className="modal__close" onClick={onClose} aria-label="Close">
                             <i className="codicon codicon-close" aria-hidden="true" />
                         </button>
@@ -124,10 +121,7 @@ export function DeleteBranchesModal({ snapshot, onClose }: DeleteBranchesModalPr
         <div className="modal-backdrop" onClick={handleBackdropClick}>
             <div className="modal" role="dialog" aria-modal="true" aria-label="Delete Local Branches">
                 <header className="modal__header">
-                    <h2>
-                        <i className="codicon codicon-trash" aria-hidden="true" style={{ marginRight: '0.45rem' }} />
-                        Delete Local Branches
-                    </h2>
+                    <h2>Delete Local Branches</h2>
                     <button type="button" className="modal__close" onClick={onClose} aria-label="Close">
                         <i className="codicon codicon-close" aria-hidden="true" />
                     </button>

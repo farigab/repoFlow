@@ -138,10 +138,7 @@ export function WorktreeModal({ repoRoot, entries, branches, busy, worktreeError
         <div className="modal-backdrop" onClick={handleBackdropClick}>
             <div className="modal worktree-modal" role="dialog" aria-modal="true" aria-label="Worktree Manager">
                 <header className="modal__header">
-                    <h2>
-                        <i className="codicon codicon-repo-clone" aria-hidden="true" />
-                        Worktree Manager
-                    </h2>
+                    <h2>Worktree Manager</h2>
                     <button type="button" className="modal__close" onClick={onClose} aria-label="Close">
                         <i className="codicon codicon-close" aria-hidden="true" />
                     </button>
