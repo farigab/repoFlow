@@ -1,8 +1,13 @@
 # Changelog
 
+## 1.1.7
+
+- **Create Branch** option to repository actions and improve status bar summary
+- Improve branch deletion functionality with support for force option and enhanced UI interactions
+
 ## 1.1.6
 
-- Fix: **Show in RepoFlow** from blame now reliably opens the commit detail panel: a useEffect that syncs the selected commit with the graph snapshot was unconditionally clearing requestedCommitHashRef whenever selectedCommitHash was undefined. Because a graphSnapshot message can arrive between the revealCommit and commitDetail messages, the ref was being wiped out before the detail payload arrived, causing the guard to reject the message and leave the panel empty. The ref is now managed exclusively by user-action handlers (handleSelectCommit, handleSelectUncommitted, revealCommit, and the detail panel's onClose).
+- Fixed **Show in RepoFlow** from blame now reliably opens the commit detail panel: a useEffect that syncs the selected commit with the graph snapshot was unconditionally clearing requestedCommitHashRef whenever selectedCommitHash was undefined. Because a graphSnapshot message can arrive between the revealCommit and commitDetail messages, the ref was being wiped out before the detail payload arrived, causing the guard to reject the message and leave the panel empty. The ref is now managed exclusively by user-action handlers (handleSelectCommit, handleSelectUncommitted, revealCommit, and the detail panel's onClose).
 
 ## 1.1.5
 
@@ -18,8 +23,8 @@
 
 ## 1.1.2
 
-- **Fix: Checking out a remote branch no longer enters detached HEAD**: when checking out a remote branch (e.g. `origin/feat/changes`) from the branch tree, git now receives only the local name (`feat/changes`), correctly creating or switching to the local tracking branch instead of pointing to a bare commit.
-- **Fix: `feat/` subfolders (and similar) now appear correctly under the Remote group**: the branch tree hierarchical grouping is now recursive. Branches such as `origin/feat/changes` produce the full hierarchy **Remote → origin → feat → changes** at any nesting depth.
+- **Fixed checking out a remote branch no longer enters detached HEAD**: when checking out a remote branch (e.g. `origin/feat/changes`) from the branch tree, git now receives only the local name (`feat/changes`), correctly creating or switching to the local tracking branch instead of pointing to a bare commit.
+- **Fixed `feat/` subfolders (and similar) now appear correctly under the Remote group**: the branch tree hierarchical grouping is now recursive. Branches such as `origin/feat/changes` produce the full hierarchy **Remote → origin → feat → changes** at any nesting depth.
 
 ## 1.1.1
 

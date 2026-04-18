@@ -325,8 +325,8 @@ export class GitCliRepository implements GitRepository {
     this.graphCache.clear();
   }
 
-  public async deleteBranch(repoRoot: string, name: string): Promise<void> {
-    await this.runGit(repoRoot, ['branch', '-d', name]);
+  public async deleteBranch(repoRoot: string, name: string, force = false): Promise<void> {
+    await this.runGit(repoRoot, ['branch', force ? '-D' : '-d', name]);
     this.graphCache.clear();
   }
 
@@ -433,16 +433,13 @@ export class GitCliRepository implements GitRepository {
     return parseStashList(raw);
   }
 
-  public async stashChanges(repoRoot: string, message?: string, includeUntracked = false): Promise<void> {
+  public async stashChanges(repoRoot: string, message?: string, includeUntracked = false, paths?: string[]): Promise<void> {
     const args = ['stash', 'push'];
-    if (includeUntracked) {
-      args.push('--include-untracked');
+    if (includeUntracked) args.push('--include-untracked');
+    if (message?.trim()) args.push('-m', message.trim());
+    if (paths && paths.length > 0) {
+      args.push('--', ...paths);
     }
-
-    if (message?.trim()) {
-      args.push('-m', message.trim());
-    }
-
     await this.runGit(repoRoot, args);
     this.graphCache.clear();
   }

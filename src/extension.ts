@@ -125,6 +125,7 @@ export function activate(context: vscode.ExtensionContext): void {
         items.push({ label: '$(sync) Fetch', description: 'Update remote refs', action: 'fetch' });
         items.push({ label: '', kind: vscode.QuickPickItemKind.Separator, description: '', action: '' });
         items.push({ label: '$(git-branch) Open Graph', description: '', action: 'openGraph' });
+        items.push({ label: '$(git-branch) Create Branch...', description: '', action: 'createBranch' });
 
         const choice = await vscode.window.showQuickPick(items, {
           title: `RepoFlow — ${branch}`,
@@ -145,7 +146,8 @@ export function activate(context: vscode.ExtensionContext): void {
           pull: () => runAndRefresh((r) => repository.pull(r)),
           push: () => runAndRefresh((r) => repository.push(r)),
           fetch: () => runAndRefresh((r) => repository.fetch(r)),
-          openGraph: async () => graphViewProvider.openOrReveal()
+          openGraph: async () => graphViewProvider.openOrReveal(),
+          createBranch: async () => vscode.commands.executeCommand('repoFlow.createBranch'),
         };
 
         await actions[choice.action]?.();
@@ -279,22 +281,59 @@ export function activate(context: vscode.ExtensionContext): void {
         void vscode.window.showWarningMessage(`Cannot delete the currently checked-out branch '${item.branch.shortName}'.`);
         return;
       }
+
       const answer = await vscode.window.showWarningMessage(
         `Delete branch '${item.branch.shortName}'?`,
         { modal: true },
         'Delete'
       );
       if (answer !== 'Delete') return;
-      const repoRoot = await repository.resolveRepositoryRoot();
-      if (item.branch.remote) {
-        // Remote branch: extract remote name and branch name from shortName (e.g. "origin/feat/changes")
-        const slashIdx = item.branch.shortName.indexOf('/');
-        const remoteName = item.branch.shortName.slice(0, slashIdx);
-        const branchName = item.branch.shortName.slice(slashIdx + 1);
-        await repository.deleteRemoteBranch(repoRoot, remoteName, branchName);
-      } else {
-        await repository.deleteBranch(repoRoot, item.branch.shortName);
+
+      let repoRoot: string;
+      try {
+        repoRoot = await repository.resolveRepositoryRoot();
+      } catch {
+        void vscode.window.showErrorMessage('RepoFlow: No Git repository found.');
+        return;
       }
+
+      try {
+        if (item.branch.remote) {
+          const slashIdx = item.branch.shortName.indexOf('/');
+          if (slashIdx === -1) {
+            void vscode.window.showErrorMessage(`RepoFlow: Invalid remote branch name '${item.branch.shortName}'.`);
+            return;
+          }
+          const remoteName = item.branch.shortName.slice(0, slashIdx);
+          const branchName = item.branch.shortName.slice(slashIdx + 1);
+          await repository.deleteRemoteBranch(repoRoot, remoteName, branchName);
+        } else {
+          await repository.deleteBranch(repoRoot, item.branch.shortName);
+        }
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+
+        if (!msg.includes('not fully merged') || item.branch.remote) {
+          void vscode.window.showErrorMessage(`RepoFlow: ${msg}`);
+          return;
+        }
+
+        const force = await vscode.window.showWarningMessage(
+          `Branch '${item.branch.shortName}' is not fully merged. Force delete?`,
+          { modal: true },
+          'Force Delete'
+        );
+        if (force !== 'Force Delete') return;
+
+        try {
+          await repository.deleteBranch(repoRoot, item.branch.shortName, true);
+        } catch (forceError) {
+          const forceMsg = forceError instanceof Error ? forceError.message : String(forceError);
+          void vscode.window.showErrorMessage(`RepoFlow: ${forceMsg}`);
+          return;
+        }
+      }
+
       branchTreeProvider.refresh();
       await graphViewProvider.refresh();
     }),

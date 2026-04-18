@@ -2,7 +2,7 @@
   "name": "repoflow",
   "displayName": "RepoFlow — Git Tools & Graph",
   "description": "Interactive Git graph, commit history, diff, stash, blame, worktree manager and pull request manager for Visual Studio Code.",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "publisher": "farigab",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -82,7 +82,7 @@
       {
         "command": "repoFlow.branches.checkout",
         "title": "Checkout Branch",
-        "icon": "$(check)"
+        "icon": "$(arrow-right)"
       },
       {
         "command": "repoFlow.branches.delete",
@@ -123,6 +123,11 @@
           "command": "repoFlow.branches.refresh",
           "when": "view == repoFlow.branchesView",
           "group": "navigation"
+        },
+        {
+          "command": "repoFlow.createBranch",
+          "when": "view == repoFlow.branchesView",
+          "group": "navigation@1"
         }
       ],
       "view/item/context": [
@@ -130,6 +135,11 @@
           "command": "repoFlow.branches.checkout",
           "when": "view == repoFlow.branchesView && viewItem == branch",
           "group": "inline@1"
+        },
+        {
+          "command": "repoFlow.branches.delete",
+          "when": "view == repoFlow.branchesView && viewItem == branch",
+          "group": "inline@2"
         },
         {
           "command": "repoFlow.branches.checkout",
@@ -218,7 +228,7 @@
     "@typescript-eslint/parser": "^8.58.2",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
-    "@vscode/vsce": "^3.9.0",
+    "@vscode/vsce": "^3.9.1",
     "esbuild": "^0.28.0",
     "eslint": "^10.2.1",
     "typescript": "^6.0.3"

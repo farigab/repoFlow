@@ -77,36 +77,20 @@ export function buildRepoSummary(status: WorkingTreeStatus): string {
  * Compact one-liner for the VS Code status bar.
  * Uses codicon syntax understood by VS Code StatusBarItem.
  */
+// repoSummary.ts — só aparece quando há algo relevante além do branch
 export function buildRepoStatusBarText(status: WorkingTreeStatus): string {
-  const branch = status.currentBranch ?? 'HEAD';
-  const staged = status.staged.length;
-  const unstaged = status.unstaged.length;
-  const conflicted = status.conflicted.length;
+  const tokens: string[] = ['$(source-control) RepoFlow'];
 
-  let label: string;
-  if (status.specialState === 'detached') {
-    label = `$(git-commit) ${branch.length > 16 ? branch.slice(0, 14) + '…' : branch}`;
-  } else {
-    const stateLabel = status.specialState ? SPECIAL_STATE_LABEL[status.specialState] ?? '' : '';
-    const prefix = stateLabel ? `$(warning) ${stateLabel} ` : '$(git-branch) ';
-    label = `${prefix}${branch}`;
+  if (status.specialState && status.specialState !== 'detached') {
+    const label = SPECIAL_STATE_LABEL[status.specialState] ?? status.specialState;
+    tokens.push(`$(warning) ${label}`);
   }
 
-  const tokens: string[] = [label];
+  if (status.ahead > 0) tokens.push(`$(arrow-up)${status.ahead}`);
+  if (status.behind > 0) tokens.push(`$(arrow-down)${status.behind}`);
 
-  if (status.ahead > 0) {
-    tokens.push(`$(arrow-up)${status.ahead}`);
-  }
-  if (status.behind > 0) {
-    tokens.push(`$(arrow-down)${status.behind}`);
-  }
-
-  const totalFiles = staged + unstaged + conflicted;
-  if (conflicted > 0) {
-    tokens.push(`$(warning)${conflicted}`);
-  } else if (totalFiles > 0) {
-    tokens.push(`$(circle-filled)${totalFiles}`);
-  }
+  const conflicts = status.conflicted.length;
+  if (conflicts > 0) tokens.push(`$(warning)${conflicts}`);
 
   return tokens.join(' ');
 }
