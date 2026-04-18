@@ -63,7 +63,7 @@ export function App() {
                     setFilters(message.payload.filters);
                     return;
                 case 'commitDetail':
-                    if (requestedCommitHashRef.current && requestedCommitHashRef.current !== message.payload.hash) {
+                    if (!requestedCommitHashRef.current || requestedCommitHashRef.current !== message.payload.hash) {
                         return;
                     }
                     setSelectedCommit(message.payload);
@@ -116,7 +116,6 @@ export function App() {
         }
 
         if (!selectedCommitHash || !snapshot.rows.some((row) => row.commit.hash === selectedCommitHash)) {
-            requestedCommitHashRef.current = undefined;
             setSelectedCommitHash(undefined);
             return;
         }
