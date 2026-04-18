@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.6
+
+- Fix: **Show in RepoFlow** from blame now reliably opens the commit detail panel: a useEffect that syncs the selected commit with the graph snapshot was unconditionally clearing requestedCommitHashRef whenever selectedCommitHash was undefined. Because a graphSnapshot message can arrive between the revealCommit and commitDetail messages, the ref was being wiped out before the detail payload arrived, causing the guard to reject the message and leave the panel empty. The ref is now managed exclusively by user-action handlers (handleSelectCommit, handleSelectUncommitted, revealCommit, and the detail panel's onClose).
+
 ## 1.1.5
 
 - **Branch ahead/behind indicators**: the branch tree view now shows `↑N` (commits to push) and `↓N` (commits to pull) as secondary text beside each branch that has an upstream. Both arrows appear together when diverged (e.g. `↑2 ↓1`). Falls back to `→ upstream` when in sync.
