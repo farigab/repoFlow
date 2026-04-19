@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.8 — 2026-04-19
+
+- **Added:** Centralized Git watchers and registration for repository events; improved command registration for repo-level actions.
+- **Changed:** Refactor of model imports and module structure to reduce coupling and simplify component wiring.
+- **Fixed:** Add watcher for `COMMIT_EDITMSG` to improve detection of special Git states (merge/rebase/cherry-pick).
+
+## Included commits
+
+- [1dda154](https://github.com/farigab/repoFlow/commit/1dda154) — feat: implement Git watchers and command registration for improved repository management
+- [7b7b801](https://github.com/farigab/repoFlow/commit/7b7b801) — fix: add file system watcher for COMMIT_EDITMSG to enhance Git state tracking
+- [a914a7a](https://github.com/farigab/repoFlow/commit/a914a7a) — refactor: simplify BranchTreeItem initialization and enhance display logic
+- [64b4474](https://github.com/farigab/repoFlow/commit/64b4474) — Refactor model imports and restructure codebase
+
 ## 1.1.7
 
 - **Create Branch** option to repository actions and improve status bar summary
