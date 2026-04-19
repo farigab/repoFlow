@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { BlameEntry, CommitStats, RepoGitConfig } from '../../core/models';
-import type { GitQueryPort } from '../../core/ports/GitQueryPort';
+import { GitRepository } from '../../core/ports';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -12,8 +12,12 @@ function getInitials(name: string): string {
   }
 
   const first = words[0][0] ?? '';
-  const second = words.length > 1 ? (words[words.length - 1][0] ?? '') : '';
+  const second = words.length > 1 ? (words.at(-1)![0] ?? '') : '';
   return (first + second).toUpperCase();
+}
+
+function pluralize(n: number, unit: string): string {
+  return `${n} ${unit}${n === 1 ? '' : 's'} ago`;
 }
 
 function formatRelativeDate(iso: string): string {
@@ -26,12 +30,12 @@ function formatRelativeDate(iso: string): string {
   const years = Math.floor(days / 365);
 
   if (minutes < 1) { return 'just now'; }
-  if (minutes < 60) { return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`; }
-  if (hours < 24) { return `${hours} hour${hours !== 1 ? 's' : ''} ago`; }
-  if (days < 7) { return `${days} day${days !== 1 ? 's' : ''} ago`; }
-  if (weeks < 5) { return `${weeks} week${weeks !== 1 ? 's' : ''} ago`; }
-  if (months < 12) { return `${months} month${months !== 1 ? 's' : ''} ago`; }
-  return `${years} year${years !== 1 ? 's' : ''} ago`;
+  if (minutes < 60) { return pluralize(minutes, 'minute'); }
+  if (hours < 24) { return pluralize(hours, 'hour'); }
+  if (days < 7) { return pluralize(days, 'day'); }
+  if (weeks < 5) { return pluralize(weeks, 'week'); }
+  if (months < 12) { return pluralize(months, 'month'); }
+  return pluralize(years, 'year');
 }
 
 function formatAbsoluteDate(iso: string): string {
@@ -114,24 +118,44 @@ export class GitBlameController implements vscode.Disposable {
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
   public constructor(
-    private readonly repository: GitQueryPort,
+    private readonly repository: GitRepository,
     private readonly output: vscode.OutputChannel
   ) {
     this.disposables.push(
       BLAME_DECORATION,
       vscode.window.onDidChangeTextEditorSelection(this.onSelectionChange, this),
       vscode.window.onDidChangeActiveTextEditor(this.onActiveEditorChange, this),
-      // HoverProvider covers all file-scheme documents so it can show the
-      // blame popup when the user hovers over a decorated line.
       vscode.languages.registerHoverProvider(
         { scheme: 'file' },
         { provideHover: (doc, pos) => this.provideHover(doc, pos) },
       ),
+      vscode.workspace.onDidSaveTextDocument((doc) => {
+        this.blameCache.delete(doc.uri.fsPath);
+        if (this.currentEditor?.document === doc) {
+          void this.updateBlame(this.currentEditor);
+        }
+      }),
     );
 
-    if (vscode.window.activeTextEditor) {
-      this.currentEditor = vscode.window.activeTextEditor;
+    this.initialize();
+  }
+
+  private initialize(): void {
+    const editor = vscode.window.activeTextEditor;
+    if (editor) {
+      this.currentEditor = editor;
+      void this.updateBlame(editor);
+      return;
     }
+
+    // Editor not ready yet — wait for the first activation
+    const disposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
+      disposable.dispose();
+      if (editor) {
+        this.currentEditor = editor;
+        void this.updateBlame(editor);
+      }
+    });
   }
 
   /** Call when git state changes (HEAD/index/refs) to invalidate cached blame. */
@@ -150,6 +174,10 @@ export class GitBlameController implements vscode.Disposable {
 
     this.currentEditor = editor;
     this.currentLine = -1;
+
+    if (editor) {
+      void this.updateBlame(editor);
+    }
   }
 
   private onSelectionChange(event: vscode.TextEditorSelectionChangeEvent): void {
@@ -189,8 +217,8 @@ export class GitBlameController implements vscode.Disposable {
       const cacheKey = filePath;
       let cached = this.blameCache.get(cacheKey);
 
-      if (!cached || cached.headHash !== headHash) {
-        const relPath = path.relative(repoRoot, filePath).replace(/\\/g, '/');
+      if (cached?.headHash !== headHash) {
+        const relPath = path.relative(repoRoot, filePath).replaceAll('\\', '/');
         const entries = await this.repository.getBlame(repoRoot, relPath);
 
         const byLine: BlameEntry[] = [];
@@ -245,16 +273,15 @@ export class GitBlameController implements vscode.Disposable {
   ): void {
     const initials = getInitials(entry.authorName);
     const relDate = formatRelativeDate(entry.committedAt);
-    const truncMsg = truncate(entry.commitMessage, 50);
+    const isUncommitted = entry.commitHash.startsWith(UNCOMMITTED_HASH_PREFIX);
+    const truncMsg = isUncommitted
+      ? 'Uncommitted Changes'
+      : truncate(entry.commitMessage, 50);
     const contentText = `[${initials}]  ${entry.authorName}  \u2022  ${relDate}  \u2022  ${truncMsg}`;
 
-    // Place the range at the END of the line so the `after` pseudo-element
-    // appears after the last character and does not push code rightward.
     const lineLength = editor.document.lineAt(line).text.length;
     const range = new vscode.Range(line, lineLength, line, lineLength);
 
-    // Cache for the HoverProvider — hoverMessage on after-decorations is
-    // unreliable; a registered HoverProvider is the correct approach.
     this.activeDecoration.set(editor.document.uri.fsPath, { line, entry, config });
 
     editor.setDecorations(BLAME_DECORATION, [
@@ -277,37 +304,24 @@ export class GitBlameController implements vscode.Disposable {
     position: vscode.Position,
   ): vscode.Hover | undefined {
     const active = this.activeDecoration.get(document.uri.fsPath);
-    if (!active || active.line !== position.line) {
+    if (active?.line !== position.line) {
       return undefined;
     }
 
     const { entry, config } = active;
-    const shortHash = entry.commitHash.slice(0, 7);
     const absDate = formatAbsoluteDate(entry.committedAt);
     const stats = this.statsCache.get(entry.commitHash);
-
     const isUncommitted = entry.commitHash.startsWith(UNCOMMITTED_HASH_PREFIX);
 
-    const statsLine = isUncommitted
-      ? '$(circle-slash) Not Committed Yet'
-      : stats
-        ? `<span style="color:#4ec9b0;">+${stats.insertions} insertion${stats.insertions !== 1 ? 's' : ''}</span>&ensp;<span style="color:#f14c4c;">-${stats.deletions} deletion${stats.deletions !== 1 ? 's' : ''}</span>&ensp;${stats.filesChanged} file${stats.filesChanged !== 1 ? 's' : ''} changed`
-        : '$(loading~spin) Loading stats\u2026';
-
-    let linksLine = '';
-    if (!isUncommitted) {
-      const ghUrl = buildGitHubCommitUrl(config.remotes, entry.commitHash);
-      const ghPart = ghUrl ? `[$(link-external) Open on GitHub](${ghUrl})` : '';
-
-      const revealArgs = encodeURIComponent(JSON.stringify([entry.commitHash]));
-      const revealPart = `[$(git-commit) Show in RepoFlow](command:repoFlow.revealCommit?${revealArgs})`;
-
-      linksLine = [ghPart, revealPart].filter(Boolean).join(' \u00a0\u2502\u00a0 ');
-    }
+    const statsLine = this.buildStatsLine(entry, stats);
+    const linksLine = isUncommitted ? '' : this.buildLinksLine(entry, config);
+    const headerLine = isUncommitted
+      ? '$(edit) **Uncommitted Changes**'
+      : `\`${entry.commitHash.slice(0, 7)}\` **${entry.commitMessage}**`;
 
     const md = new vscode.MarkdownString(
       [
-        `\`${shortHash}\` **${entry.commitMessage}**`,
+        headerLine,
         '',
         `$(account) **${entry.authorName}**`,
         '',
@@ -317,15 +331,35 @@ export class GitBlameController implements vscode.Disposable {
         '',
         linksLine,
       ].join('\n'),
-      /* supportThemeIcons */ true,
+    /* supportThemeIcons */ true,
     );
     md.supportHtml = true;
     md.isTrusted = true;
 
-    // Cover the full line so hovering anywhere on it triggers the popup.
     const lineLength = document.lineAt(position.line).text.length;
     const range = new vscode.Range(position.line, 0, position.line, lineLength);
     return new vscode.Hover(md, range);
+  }
+
+  private buildLinksLine(entry: BlameEntry, config: RepoGitConfig): string {
+    const ghUrl = buildGitHubCommitUrl(config.remotes, entry.commitHash);
+    const ghPart = ghUrl ? `[$(link-external) Open on GitHub](${ghUrl})` : '';
+
+    const revealArgs = encodeURIComponent(JSON.stringify([entry.commitHash]));
+    const revealPart = `[$(git-commit) Show in RepoFlow](command:repoFlow.revealCommit?${revealArgs})`;
+
+    return [ghPart, revealPart].filter(Boolean).join(' \u00a0\u2502\u00a0 ');
+  }
+
+  private buildStatsLine(entry: BlameEntry, stats: CommitStats | undefined): string {
+    const isUncommitted = entry.commitHash.startsWith(UNCOMMITTED_HASH_PREFIX);
+    if (isUncommitted) return '$(circle-slash) Not Committed Yet';
+    if (!stats) return '$(loading~spin) Loading stats\u2026';
+
+    const ins = `<span style="color:#4ec9b0;">+${stats.insertions} insertion${stats.insertions === 1 ? '' : 's'}</span>`;
+    const del = `<span style="color:#f14c4c;">-${stats.deletions} deletion${stats.deletions === 1 ? '' : 's'}</span>`;
+    const files = `${stats.filesChanged} file${stats.filesChanged === 1 ? '' : 's'} changed`;
+    return [ins, del, files].join('&ensp;');
   }
 
   // ── cached accessors ─────────────────────────────────────────────────────

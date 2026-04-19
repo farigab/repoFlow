@@ -38,38 +38,17 @@ export class BranchTreeItem extends vscode.TreeItem {
   }) {
     if (opts.kind === 'branch') {
       const b = opts.branch!;
-      const displayName = opts.displayLabel ?? (
-        b.shortName.includes('/')
-          ? b.shortName.slice(b.shortName.indexOf('/') + 1)
-          : b.shortName
-      );
-
-      super(
-        displayName,
-        vscode.TreeItemCollapsibleState.None
-      );
-
+      super(BranchTreeItem.resolveDisplayName(b, opts.displayLabel), vscode.TreeItemCollapsibleState.None);
       this.kind = 'branch';
       this.branch = b;
-
-      // Show ahead/behind arrows as description
-      const trackParts: string[] = [];
-      if (b.ahead) trackParts.push(`↑${b.ahead}`);
-      if (b.behind) trackParts.push(`↓${b.behind}`);
-      if (trackParts.length > 0) {
-        this.description = trackParts.join(' ');
-      } else if (b.upstream) {
-        this.description = `→ ${b.upstream}`;
-      }
-
+      this.description = BranchTreeItem.resolveDescription(b);
       this.tooltip = b.shortName;
       this.contextValue = 'branch';
-
+      this.iconPath = b.current
+        ? new vscode.ThemeIcon('git-branch', new vscode.ThemeColor('gitDecoration.addedResourceForeground'))
+        : new vscode.ThemeIcon('git-branch');
       if (b.current) {
-        this.iconPath = new vscode.ThemeIcon('git-branch', new vscode.ThemeColor('gitDecoration.addedResourceForeground'));
         this.description = (this.description ? `${this.description}  ` : '') + '●';
-      } else {
-        this.iconPath = new vscode.ThemeIcon('git-branch');
       }
     } else if (opts.kind === 'prefix-folder') {
       super(opts.label!, vscode.TreeItemCollapsibleState.Expanded);
@@ -77,12 +56,28 @@ export class BranchTreeItem extends vscode.TreeItem {
       this.iconPath = new vscode.ThemeIcon('folder');
       this.contextValue = 'branchFolder';
     } else {
-      // root-group
       super(opts.label!, vscode.TreeItemCollapsibleState.Expanded);
       this.kind = 'root-group';
       this.iconPath = new vscode.ThemeIcon(opts.icon ?? 'git-branch');
       this.contextValue = 'branchGroup';
     }
+  }
+
+  private static resolveDisplayName(b: BranchSummary, displayLabel?: string): string {
+    return displayLabel ?? (
+      b.shortName.includes('/')
+        ? b.shortName.slice(b.shortName.indexOf('/') + 1)
+        : b.shortName
+    );
+  }
+
+  private static resolveDescription(b: BranchSummary): string | undefined {
+    const trackParts: string[] = [];
+    if (b.ahead) trackParts.push(`↑${b.ahead}`);
+    if (b.behind) trackParts.push(`↓${b.behind}`);
+    if (trackParts.length > 0) return trackParts.join(' ');
+    if (b.upstream) return `→ ${b.upstream}`;
+    return undefined;
   }
 }
 
@@ -123,7 +118,7 @@ export class BranchTreeDataProvider implements vscode.TreeDataProvider<BranchTre
 
   // ─── Build ───────────────────────────────
 
-  private childrenMap = new Map<BranchTreeItem, BranchTreeItem[]>();
+  private readonly childrenMap = new Map<BranchTreeItem, BranchTreeItem[]>();
 
   private async buildTree(): Promise<void> {
     this.childrenMap.clear();
@@ -179,12 +174,12 @@ export class BranchTreeDataProvider implements vscode.TreeDataProvider<BranchTre
     for (const b of branches) {
       const remaining = b.shortName.slice(offset);
       const slashIdx = remaining.indexOf('/');
-      if (slashIdx !== -1) {
+      if (slashIdx === -1) {
+        ungrouped.push(b);
+      } else {
         const segment = remaining.slice(0, slashIdx);
         if (!byNextSegment.has(segment)) byNextSegment.set(segment, []);
         byNextSegment.get(segment)!.push(b);
-      } else {
-        ungrouped.push(b);
       }
     }
 
@@ -202,11 +197,12 @@ export class BranchTreeDataProvider implements vscode.TreeDataProvider<BranchTre
     }
 
     // Ungrouped branches (sorted: current first, then alphabetically)
-    const sortedUngrouped = ungrouped.sort((a, b) => {
+    const sortedUngrouped = [...ungrouped].sort((a, b) => {
       if (a.current && !b.current) return -1;
       if (!a.current && b.current) return 1;
       return a.shortName.localeCompare(b.shortName);
     });
+
     for (const b of sortedUngrouped) {
       const displayLabel = b.shortName.slice(offset);
       children.push(new BranchTreeItem({ kind: 'branch', branch: b, displayLabel }));
