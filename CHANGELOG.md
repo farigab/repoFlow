@@ -1,12 +1,23 @@
 # Changelog
 
+## 1.1.9
+
+- **Changed:** Refactor `buildRepoSummary` to simplify summary construction and reduce cognitive complexity.
+- **Fixed:** Correct package version format in `package.json` and `package-lock.json` to `1.1.8-preview` (removed invalid space) to satisfy VS Code extension manifest requirements.
+- **Build:** Packaged VSIX `repoflow-1.1.8-preview.vsix`.
+
+## Included commits - 1.1.9
+
+- [08c5417](https://github.com/farigab/repoFlow/commit/08c54170915d7e6a25d3af498bb0c2572a796c16) — refactor: streamline repo summary construction by modularizing helper functions
+- [b3b3538](https://github.com/farigab/repoFlow/commit/b3b35382f7512c2ada70f576639f603a8dad97bd) — chore: update version to 1.1.8 in package.json and package-lock.json; update changelog for new features and fixes
+
 ## 1.1.8 — 2026-04-19
 
 - **Added:** Centralized Git watchers and registration for repository events; improved command registration for repo-level actions.
 - **Changed:** Refactor of model imports and module structure to reduce coupling and simplify component wiring.
 - **Fixed:** Add watcher for `COMMIT_EDITMSG` to improve detection of special Git states (merge/rebase/cherry-pick).
 
-## Included commits
+## Included commits - 1.1.8
 
 - [1dda154](https://github.com/farigab/repoFlow/commit/1dda154) — feat: implement Git watchers and command registration for improved repository management
 - [7b7b801](https://github.com/farigab/repoFlow/commit/7b7b801) — fix: add file system watcher for COMMIT_EDITMSG to enhance Git state tracking
