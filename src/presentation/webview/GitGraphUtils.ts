@@ -36,11 +36,27 @@ export function buildPrUrl(remoteUrl: string, source: string, target: string, ti
   }
 
   if (/gitlab\.com/.test(normalized)) {
-    return `${normalized}/-/merge_requests/new?merge_request[source_branch]=${enc(source)}&merge_request[target_branch]=${enc(target)}${title ? `&merge_request[title]=${enc(title)}` : ''}${description ? `&merge_request[description]=${enc(description)}` : ''}`;
+    const params: string[] = [
+      `merge_request[source_branch]=${enc(source)}`,
+      `merge_request[target_branch]=${enc(target)}`
+    ];
+    if (title) {
+      params.push(`merge_request[title]=${enc(title)}`);
+    }
+    if (description) {
+      params.push(`merge_request[description]=${enc(description)}`);
+    }
+    return `${normalized}/-/merge_requests/new?${params.join('&')}`;
   }
 
   if (/bitbucket\.org/.test(normalized)) {
-    return `${normalized}/pull-requests/new?source=${enc(source)}&dest=${enc(target)}${title ? `&title=${enc(title)}` : ''}${description ? `&description=${enc(description)}` : ''}`;
+    const params: string[] = [
+      `source=${enc(source)}`,
+      `dest=${enc(target)}`
+    ];
+    if (title) params.push(`title=${enc(title)}`);
+    if (description) params.push(`description=${enc(description)}`);
+    return `${normalized}/pull-requests/new?${params.join('&')}`;
   }
 
   return null;
