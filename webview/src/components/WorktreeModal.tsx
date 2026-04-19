@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { BranchSummary, WorktreeEntry } from '../../../src/core/models/GitModels';
+import type { BranchSummary, WorktreeEntry } from '../../../src/core/models';
 import { vscode } from '../vscode';
 
 interface WorktreeModalProps {

@@ -1,4 +1,4 @@
-import type { CommitDetail, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, WorkingTreeFile, WorktreeEntry } from '../core/models/GitModels';
+import type { CommitDetail, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, WorkingTreeFile, WorktreeEntry } from '../core/models';
 
 export type WebviewToExtensionMessage =
   | { type: 'ready' }

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import type { BranchSummary } from '../../core/models/GitModels';
-import type { GitRepository } from '../../core/ports/GitRepository';
+import type { BranchSummary } from '../../core/models';
+import type { GitQueryPort } from '../../core/ports/GitQueryPort';
 
 // ─────────────────────────────────────────────
 // Item kinds
@@ -96,7 +96,7 @@ export class BranchTreeDataProvider implements vscode.TreeDataProvider<BranchTre
 
   private roots: BranchTreeItem[] = [];
 
-  public constructor(private readonly repository: GitRepository) { }
+  public constructor(private readonly repository: GitQueryPort) { }
 
   public refresh(): void {
     this._onDidChangeTreeData.fire();

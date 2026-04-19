@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { BranchSummary, GraphFilters, RepoRemote } from '../../core/models/GitModels';
+import type { BranchSummary, GraphFilters, RepoRemote } from '../../core/models';
 import type { GitRepository } from '../../core/ports/GitRepository';
 import { createNonce } from '../../shared/nonce';
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '../../shared/protocol';
@@ -616,7 +616,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
       }
       case 'continueOperation':
         await this.executeRepositoryAction('Continuing...', async () => {
-          await this.repository.continueOperation(message.payload.repoRoot, message.payload.state as import('../../core/models/GitModels').RepoSpecialState);
+          await this.repository.continueOperation(message.payload.repoRoot, message.payload.state as import('../../core/models').RepoSpecialState);
         });
         return;
       case 'skipOperation':
@@ -626,7 +626,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
         return;
       case 'abortOperation':
         await this.executeRepositoryAction('Aborting...', async () => {
-          await this.repository.abortOperation(message.payload.repoRoot, message.payload.state as import('../../core/models/GitModels').RepoSpecialState);
+          await this.repository.abortOperation(message.payload.repoRoot, message.payload.state as import('../../core/models').RepoSpecialState);
         });
         return;
       case 'pullRepo':

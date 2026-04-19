@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import type { DiffRequest } from './core/models/GitModels';
+import type { DiffRequest } from './core/models';
 import { GitCliRepository } from './infrastructure/git/GitCliRepository';
 import { GitBlameController } from './presentation/blame/GitBlameController';
 import { BranchTreeDataProvider, BranchTreeItem } from './presentation/branches/BranchTreeDataProvider';

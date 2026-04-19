@@ -1,5 +1,5 @@
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import type { CommitDetail, CommitFileChange, CommitSummary, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, WorkingTreeFile, WorktreeEntry } from '../../src/core/models/GitModels';
+import type { CommitDetail, CommitFileChange, CommitSummary, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, WorkingTreeFile, WorktreeEntry } from '../../src/core/models';
 import type { ExtensionToWebviewMessage } from '../../src/shared/protocol';
 import { CommitDetails } from './components/CommitDetails';
 import { CreatePRModal } from './components/CreatePRModal';

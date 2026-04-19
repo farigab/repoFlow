@@ -1,4 +1,4 @@
-import type { WorkingTreeFile, WorkingTreeStatus } from '../../../src/core/models/GitModels';
+import type { WorkingTreeFile, WorkingTreeStatus } from '../../../src/core/models';
 
 function getStatusBadge(file: WorkingTreeFile): { label: string; cls: string } {
     const code = (file.indexStatus.trim() || file.workTreeStatus.trim()).toUpperCase();

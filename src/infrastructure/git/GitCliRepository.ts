@@ -17,7 +17,7 @@ import type {
   StashEntry,
   WorkingTreeStatus,
   WorktreeEntry
-} from '../../core/models/GitModels';
+} from '../../core/models';
 import type { GitRepository } from '../../core/ports/GitRepository';
 import { EMPTY_TREE } from '../../shared/constants';
 import { GitCache } from './GitCache';

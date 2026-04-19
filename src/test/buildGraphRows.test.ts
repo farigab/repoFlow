@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildGraphRows } from '../application/graph/buildGraphRows';
-import type { CommitSummary } from '../core/models/GitModels';
+import type { CommitSummary } from '../core/models';
 
 function commit(hash: string, parents: string[]): CommitSummary {
   return {

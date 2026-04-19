@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import type { BlameEntry, CommitStats, RepoGitConfig } from '../../core/models/GitModels';
-import type { GitRepository } from '../../core/ports/GitRepository';
+import type { BlameEntry, CommitStats, RepoGitConfig } from '../../core/models';
+import type { GitQueryPort } from '../../core/ports/GitQueryPort';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -114,7 +114,7 @@ export class GitBlameController implements vscode.Disposable {
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
   public constructor(
-    private readonly repository: GitRepository,
+    private readonly repository: GitQueryPort,
     private readonly output: vscode.OutputChannel
   ) {
     this.disposables.push(

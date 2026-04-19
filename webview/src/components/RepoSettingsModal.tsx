@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { BranchSummary, GraphFilters, GraphSnapshot } from '../../../src/core/models/GitModels';
+import type { BranchSummary, GraphFilters, GraphSnapshot } from '../../../src/core/models';
 import { vscode } from '../vscode';
 
 interface RepoSettingsModalProps {

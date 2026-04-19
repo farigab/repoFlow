@@ -9,7 +9,7 @@ import type {
   WorkingTreeFile,
   WorkingTreeStatus,
   WorktreeEntry
-} from '../../core/models/GitModels';
+} from '../../core/models';
 
 const RECORD_SEPARATOR = '\u001e';
 const FIELD_SEPARATOR = '\u001f';

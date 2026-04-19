@@ -1,6 +1,7 @@
 import type { CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CommitSummary, GraphSnapshot, WorkingTreeStatus } from '../../../src/core/models/GitModels';
+import type { CommitSummary, GraphSnapshot, WorkingTreeStatus } from '../../../src/core/models';
+import { buildRepoSummary } from '../../../src/shared/repoSummary';
 
 interface GraphCanvasProps {
     snapshot: GraphSnapshot;
@@ -90,55 +91,7 @@ function CommitHoverTooltip({ data, onEnter, onLeave }: {
 
 const PALETTE = ['#22c55e', '#38bdf8', '#f59e0b', '#fb7185', '#a78bfa', '#14b8a6', '#f97316', '#84cc16'];
 
-const SPECIAL_STATE_LABEL: Record<string, string> = {
-    merging: 'MERGING',
-    rebasing: 'REBASING',
-    'cherry-picking': 'CHERRY-PICKING',
-    reverting: 'REVERTING',
-    bisecting: 'BISECTING',
-};
 
-function buildRepoSummary(status: WorkingTreeStatus): string {
-    const branch = status.currentBranch ?? 'HEAD';
-    const staged = status.staged.length;
-    const unstaged = status.unstaged.length;
-    const conflicted = status.conflicted.length;
-
-    const parts: string[] = [];
-
-    if (status.specialState === 'detached') {
-        parts.push(`Detached HEAD at ${branch}`);
-    } else {
-        parts.push(`Branch ${branch}`);
-    }
-
-    const stateLabel = status.specialState ? SPECIAL_STATE_LABEL[status.specialState] : undefined;
-    if (stateLabel) {
-        parts.push(stateLabel);
-    }
-
-    if (status.ahead > 0 || status.behind > 0) {
-        const divParts: string[] = [];
-        if (status.ahead > 0) divParts.push(`${status.ahead} ahead`);
-        if (status.behind > 0) divParts.push(`${status.behind} behind`);
-        const upstreamSuffix = status.upstream ? ` of ${status.upstream}` : '';
-        parts.push(divParts.join(', ') + upstreamSuffix);
-    }
-
-    if (conflicted > 0 || staged > 0 || unstaged > 0) {
-        const fileParts: string[] = [];
-        if (staged > 0) fileParts.push(`${staged} staged`);
-        if (unstaged > 0) fileParts.push(`${unstaged} modified`);
-        if (conflicted > 0) fileParts.push(`${conflicted} conflict${conflicted > 1 ? 's' : ''}`);
-        parts.push(fileParts.join(', '));
-    }
-
-    if (parts.length === 1) {
-        parts.push('clean');
-    }
-
-    return parts.join(' — ');
-}
 
 function formatTimeAgo(isoDate: string): string {
     const seconds = Math.floor((Date.now() - new Date(isoDate).getTime()) / 1000);

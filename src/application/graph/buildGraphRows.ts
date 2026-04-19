@@ -1,4 +1,4 @@
-import type { CommitSummary, GraphRow } from '../../core/models/GitModels';
+import type { CommitSummary, GraphRow } from '../../core/models';
 
 interface LaneState {
   nextLane: number;

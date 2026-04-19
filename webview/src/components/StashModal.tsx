@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { GraphSnapshot, StashEntry } from '../../../src/core/models/GitModels';
+import type { GraphSnapshot, StashEntry } from '../../../src/core/models';
 import { vscode } from '../vscode';
 
 interface StashModalProps {

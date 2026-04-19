@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { GitRepository } from '../../core/ports/GitRepository';
+import type { GitQueryPort } from '../../core/ports/GitQueryPort';
 
 interface GitDocumentQuery {
   repoRoot: string;
@@ -13,7 +13,7 @@ export class GitContentProvider implements vscode.TextDocumentContentProvider {
   private readonly onDidChangeEmitter = new vscode.EventEmitter<vscode.Uri>();
   public readonly onDidChange = this.onDidChangeEmitter.event;
 
-  public constructor(private readonly repository: GitRepository) {}
+  public constructor(private readonly repository: GitQueryPort) { }
 
   public provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
     const query = this.parseQuery(uri);

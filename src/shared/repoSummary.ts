@@ -1,4 +1,4 @@
-import type { WorkingTreeStatus } from '../core/models/GitModels';
+import type { WorkingTreeStatus } from '../core/models';
 
 const SPECIAL_STATE_LABEL: Record<string, string> = {
   merging: 'MERGING',

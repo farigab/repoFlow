@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { CommitDetail, CommitFileChange } from '../../../src/core/models/GitModels';
+import type { CommitDetail, CommitFileChange } from '../../../src/core/models';
 
 interface CommitDetailsProps {
     detail: CommitDetail | null;

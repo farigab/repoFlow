@@ -1,65 +1,35 @@
-import type {
-  BlameEntry,
-  BranchSummary,
-  CommitDetail,
-  CommitStats,
-  DiffRequest,
-  GraphFilters,
-  GraphSnapshot,
-  RepoGitConfig,
-  RepoSpecialState,
-  StashEntry,
-  WorkingTreeStatus,
-  WorktreeEntry
-} from '../models/GitModels';
+export type { GitBranchPort } from './GitBranchPort';
+export type { GitConfigPort } from './GitConfigPort';
+export type { GitHistoryPort } from './GitHistoryPort';
+export type { GitOperationPort } from './GitOperationPort';
+export type { GitQueryPort } from './GitQueryPort';
+export type { GitRemotePort } from './GitRemotePort';
+export type { GitStagingPort } from './GitStagingPort';
+export type { GitStashPort } from './GitStashPort';
+export type { GitViewPort } from './GitViewPort';
+export type { GitWorktreePort } from './GitWorktreePort';
 
-export interface GitRepository {
-  resolveRepositoryRoot(preferredPath?: string): Promise<string>;
-  getGraph(filters: GraphFilters): Promise<GraphSnapshot>;
-  getCommitDetail(repoRoot: string, commitHash: string): Promise<CommitDetail>;
-  getBranches(repoRoot: string): Promise<BranchSummary[]>;
-  getLocalChanges(repoRoot: string): Promise<WorkingTreeStatus>;
-  readBlobContent(repoRoot: string, ref: string, path: string): Promise<string>;
-  stageFile(repoRoot: string, path: string): Promise<void>;
-  unstageFile(repoRoot: string, path: string): Promise<void>;
-  discardFile(repoRoot: string, path: string, tracked: boolean): Promise<void>;
-  commit(repoRoot: string, message: string): Promise<void>;
-  createBranch(repoRoot: string, name: string, fromRef?: string): Promise<void>;
-  deleteBranch(repoRoot: string, name: string, force?: boolean): Promise<void>;
-  deleteRemoteBranch(repoRoot: string, remote: string, name: string): Promise<void>;
-  checkout(repoRoot: string, ref: string): Promise<void>;
-  merge(repoRoot: string, sourceBranch: string): Promise<void>;
-  fetch(repoRoot: string): Promise<void>;
-  pull(repoRoot: string): Promise<void>;
-  push(repoRoot: string): Promise<void>;
-  cherryPick(repoRoot: string, commitHash: string): Promise<void>;
-  revert(repoRoot: string, commitHash: string): Promise<void>;
-  dropCommit(repoRoot: string, commitHash: string): Promise<void>;
-  rebase(repoRoot: string, onto: string): Promise<void>;
-  resetTo(repoRoot: string, commitHash: string, mode: 'soft' | 'mixed' | 'hard'): Promise<void>;
-  openDiff(request: DiffRequest): Promise<void>;
-  getRepoConfig(repoRoot: string): Promise<RepoGitConfig>;
-  setGitUserName(repoRoot: string, name: string): Promise<void>;
-  setGitUserEmail(repoRoot: string, email: string): Promise<void>;
-  setRemoteUrl(repoRoot: string, remoteName: string, url: string): Promise<void>;
-  listStashes(repoRoot: string): Promise<StashEntry[]>;
-  stashChanges(repoRoot: string, message?: string, includeUntracked?: boolean): Promise<void>;
-  applyStash(repoRoot: string, ref: string): Promise<void>;
-  popStash(repoRoot: string, ref: string): Promise<void>;
-  dropStash(repoRoot: string, ref: string): Promise<void>;
-  getBlame(repoRoot: string, relativeFilePath: string): Promise<BlameEntry[]>;
-  getCommitStats(repoRoot: string, commitHash: string): Promise<CommitStats>;
-  resolveHeadHash(repoRoot: string): Promise<string>;
-  continueOperation(repoRoot: string, state: RepoSpecialState): Promise<void>;
-  abortOperation(repoRoot: string, state: RepoSpecialState): Promise<void>;
-  skipRebaseOperation(repoRoot: string): Promise<void>;
-  openFile(repoRoot: string, filePath: string): Promise<void>;
-  listWorktrees(repoRoot: string): Promise<WorktreeEntry[]>;
-  addWorktree(repoRoot: string, worktreePath: string, branch: string, createNew: boolean): Promise<void>;
-  addWorktreeAtCommit(repoRoot: string, worktreePath: string, commitHash: string): Promise<void>;
-  removeWorktree(repoRoot: string, worktreePath: string, force?: boolean): Promise<void>;
-  pruneWorktrees(repoRoot: string): Promise<void>;
-  lockWorktree(repoRoot: string, worktreePath: string): Promise<void>;
-  unlockWorktree(repoRoot: string, worktreePath: string): Promise<void>;
-  moveWorktree(repoRoot: string, worktreePath: string, newPath: string): Promise<void>;
-}
+import type { GitBranchPort } from './GitBranchPort';
+import type { GitConfigPort } from './GitConfigPort';
+import type { GitHistoryPort } from './GitHistoryPort';
+import type { GitOperationPort } from './GitOperationPort';
+import type { GitQueryPort } from './GitQueryPort';
+import type { GitRemotePort } from './GitRemotePort';
+import type { GitStagingPort } from './GitStagingPort';
+import type { GitStashPort } from './GitStashPort';
+import type { GitViewPort } from './GitViewPort';
+import type { GitWorktreePort } from './GitWorktreePort';
+
+/** Composite port — implemented by the infrastructure adapter (GitCliRepository).
+ *  Consumers should depend on the narrowest focused port that satisfies their needs. */
+export interface GitRepository
+  extends GitQueryPort,
+  GitStagingPort,
+  GitBranchPort,
+  GitRemotePort,
+  GitHistoryPort,
+  GitConfigPort,
+  GitStashPort,
+  GitOperationPort,
+  GitWorktreePort,
+  GitViewPort { }
