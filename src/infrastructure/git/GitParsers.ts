@@ -86,8 +86,8 @@ export function parseBranchList(raw: string): BranchSummary[] {
         current: headMarker === '*',
         targetHash,
         upstream: upstream || undefined,
-        ahead: aheadMatch ? parseInt(aheadMatch[1], 10) : undefined,
-        behind: behindMatch ? parseInt(behindMatch[1], 10) : undefined
+        ahead: aheadMatch ? Number.parseInt(aheadMatch[1], 10) : undefined,
+        behind: behindMatch ? Number.parseInt(behindMatch[1], 10) : undefined
       } satisfies BranchSummary;
     })
     .filter((branch) => branch.shortName !== 'HEAD');
@@ -241,7 +241,7 @@ export function parseCommitFiles(numstatRaw: string, nameStatusRaw: string): Com
     .filter(Boolean)
     .forEach((line) => {
       const [status, firstPath, secondPath] = line.split('\t');
-      const normalizedStatus = status.replace(/\d+/g, '');
+      const normalizedStatus = status.replaceAll(/\d+/g, '');
       const path = secondPath ?? firstPath;
 
       fileByKey.set(path, {
@@ -277,6 +277,31 @@ export function parseCommitFiles(numstatRaw: string, nameStatusRaw: string): Com
   return Array.from(fileByKey.values()).sort((left, right) => left.path.localeCompare(right.path));
 }
 
+function readBlameMeta(lines: string[], startIndex: number, hash: string): { meta: Omit<BlameEntry, 'lineNumber'>; nextIndex: number } {
+  let authorName = '';
+  let authorEmail = '';
+  let committedAt = '';
+  let commitMessage = '';
+
+  let i = startIndex;
+  while (i < lines.length && !(lines[i] ?? '').startsWith('\t')) {
+    const meta = lines[i] ?? '';
+    if (meta.startsWith('author ') && !meta.startsWith('author-')) {
+      authorName = meta.slice(7);
+    } else if (meta.startsWith('author-mail ')) {
+      authorEmail = meta.slice(12).replaceAll(/[<>]/g, '').trim();
+    } else if (meta.startsWith('author-time ')) {
+      const unixSec = Number.parseInt(meta.slice(12), 10);
+      committedAt = Number.isNaN(unixSec) ? '' : new Date(unixSec * 1000).toISOString();
+    } else if (meta.startsWith('summary ')) {
+      commitMessage = meta.slice(8);
+    }
+    i++;
+  }
+
+  return { meta: { commitHash: hash, authorName, authorEmail, committedAt, commitMessage }, nextIndex: i };
+}
+
 /**
  * Parses the output of `git blame --porcelain <file>`.
  * Returns entries indexed 0-based (entries[0] = line 1).
@@ -286,56 +311,31 @@ export function parseBlameOutput(raw: string): BlameEntry[] {
   const commitMeta = new Map<string, Omit<BlameEntry, 'lineNumber'>>();
   const entries: BlameEntry[] = [];
 
-  let i = 0;
-  while (i < lines.length) {
-    // Header line: <40-char hash> <orig-lineno> <final-lineno> [<num-lines>]
-    const headerMatch = /^([0-9a-f]{40}) \d+ (\d+)/.exec(lines[i] ?? '');
+  const headerRe = /^([0-9a-f]{40}) \d+ (\d+)/;
+
+  for (let i = 0; i < lines.length;) {
+    const headerMatch = headerRe.exec(lines[i] ?? '');
     if (!headerMatch) {
       i++;
       continue;
     }
 
     const hash = headerMatch[1];
-    const finalLine = parseInt(headerMatch[2], 10);
+    const finalLine = Number.parseInt(headerMatch[2], 10);
     i++;
 
-    const isFirstOccurrence = !commitMeta.has(hash);
-    if (isFirstOccurrence) {
-      let authorName = '';
-      let authorEmail = '';
-      let committedAt = '';
-      let commitMessage = '';
-
-      // Parse metadata lines until we hit the content line (starts with \t)
-      while (i < lines.length && !(lines[i] ?? '').startsWith('\t')) {
-        const meta = lines[i] ?? '';
-        if (meta.startsWith('author ') && !meta.startsWith('author-')) {
-          authorName = meta.slice(7);
-        } else if (meta.startsWith('author-mail ')) {
-          authorEmail = meta.slice(12).replace(/[<>]/g, '').trim();
-        } else if (meta.startsWith('author-time ')) {
-          const unixSec = parseInt(meta.slice(12), 10);
-          committedAt = new Date(unixSec * 1000).toISOString();
-        } else if (meta.startsWith('summary ')) {
-          commitMessage = meta.slice(8);
-        }
-        i++;
-      }
-
-      commitMeta.set(hash, { commitHash: hash, authorName, authorEmail, committedAt, commitMessage });
+    if (commitMeta.has(hash)) {
+      while (i < lines.length && !(lines[i] ?? '').startsWith('\t')) i++;
     } else {
-      // Subsequent occurrence: skip metadata until content line
-      while (i < lines.length && !(lines[i] ?? '').startsWith('\t')) {
-        i++;
-      }
+      const result = readBlameMeta(lines, i, hash);
+      commitMeta.set(hash, result.meta);
+      i = result.nextIndex;
     }
 
     i++; // skip content line
 
     const meta = commitMeta.get(hash);
-    if (meta) {
-      entries.push({ ...meta, lineNumber: finalLine });
-    }
+    if (meta) entries.push({ ...meta, lineNumber: finalLine });
   }
 
   entries.sort((a, b) => a.lineNumber - b.lineNumber);
@@ -353,8 +353,8 @@ export function parseNumstatStats(raw: string): CommitStats {
   for (const line of raw.split('\n')) {
     const match = /^(\d+)\t(\d+)\t/.exec(line.trim());
     if (match) {
-      insertions += parseInt(match[1], 10);
-      deletions += parseInt(match[2], 10);
+      insertions += Number.parseInt(match[1], 10);
+      deletions += Number.parseInt(match[2], 10);
       filesChanged++;
     }
   }
@@ -422,21 +422,28 @@ export function parseWorktreeStatusV2(raw: string): Pick<WorktreeEntry, 'dirty' 
   let unstaged = 0;
   let ahead = 0;
   let behind = 0;
+  const branchAbRe = /^# branch\.ab \+(\d+)\s+-(\d+)/;
+  const entryRe = /^[12] (..)/;
+  const isDirtyChar = (c: string) => c !== '.' && c !== '?';
 
   for (const line of raw.split(/\r?\n/)) {
-    if (line.startsWith('# branch.ab ')) {
-      // Format: # branch.ab +<ahead> -<behind>
-      const match = line.match(/\+([0-9]+)\s+-([0-9]+)/);
-      if (match) {
-        ahead = parseInt(match[1], 10);
-        behind = parseInt(match[2], 10);
-      }
-    } else if (line.startsWith('1 ') || line.startsWith('2 ')) {
-      // Format: 1 XY ... or 2 XY ...
-      const xy = line.slice(2, 4);
-      if (xy[0] && xy[0] !== '.' && xy[0] !== '?') staged++;
-      if (xy[1] && xy[1] !== '.' && xy[1] !== '?') unstaged++;
-    } else if (line.startsWith('? ') || line.startsWith('u ')) {
+    const abMatch = branchAbRe.exec(line);
+    if (abMatch) {
+      ahead = Number.parseInt(abMatch[1], 10);
+      behind = Number.parseInt(abMatch[2], 10);
+      continue;
+    }
+
+    const entryMatch = entryRe.exec(line);
+    if (entryMatch) {
+      const xy = entryMatch[1];
+      if (isDirtyChar(xy[0])) staged++;
+      if (isDirtyChar(xy[1])) unstaged++;
+      continue;
+    }
+
+    const first = line[0];
+    if (first === '?' || first === 'u') {
       // Untracked / unmerged → always dirty
       unstaged++;
     }

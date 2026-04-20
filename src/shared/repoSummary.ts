@@ -17,59 +17,50 @@ const SPECIAL_STATE_LABEL: Record<string, string> = {
  *   "Detached HEAD at abc12345 — 1 modified"
  *   "Branch main — clean"
  */
-export function buildRepoSummary(status: WorkingTreeStatus): string {
+function branchPrefix(status: WorkingTreeStatus): string {
   const branch = status.currentBranch ?? 'HEAD';
+  return status.specialState === 'detached' ? `Detached HEAD at ${branch}` : `Branch ${branch}`;
+}
+
+function stateLabelPart(status: WorkingTreeStatus): string | undefined {
+  return status.specialState ? SPECIAL_STATE_LABEL[status.specialState] : undefined;
+}
+
+function divergencePart(status: WorkingTreeStatus): string | undefined {
+  if (status.ahead <= 0 && status.behind <= 0) return undefined;
+  const parts: string[] = [];
+  if (status.ahead > 0) parts.push(`${status.ahead} ahead`);
+  if (status.behind > 0) parts.push(`${status.behind} behind`);
+  const upstream = status.upstream ? ` of ${status.upstream}` : '';
+  return parts.join(', ') + upstream;
+}
+
+function fileCountsPart(status: WorkingTreeStatus): string | undefined {
   const staged = status.staged.length;
   const unstaged = status.unstaged.length;
   const conflicted = status.conflicted.length;
-
+  if (staged === 0 && unstaged === 0 && conflicted === 0) return undefined;
   const parts: string[] = [];
+  if (staged > 0) parts.push(`${staged} staged`);
+  if (unstaged > 0) parts.push(`${unstaged} modified`);
+  if (conflicted > 0) parts.push(`${conflicted} conflict${conflicted > 1 ? 's' : ''}`);
+  return parts.join(', ');
+}
 
-  // Branch / HEAD prefix
-  if (status.specialState === 'detached') {
-    parts.push(`Detached HEAD at ${branch}`);
-  } else {
-    parts.push(`Branch ${branch}`);
-  }
+export function buildRepoSummary(status: WorkingTreeStatus): string {
+  const parts: string[] = [];
+  parts.push(branchPrefix(status));
 
-  // Special in-progress state label
-  const stateLabel = status.specialState ? SPECIAL_STATE_LABEL[status.specialState] : undefined;
-  if (stateLabel) {
-    parts.push(stateLabel);
-  }
+  const state = stateLabelPart(status);
+  if (state) parts.push(state);
 
-  // Divergence
-  if (status.ahead > 0 || status.behind > 0) {
-    const divParts: string[] = [];
-    if (status.ahead > 0) {
-      divParts.push(`${status.ahead} ahead`);
-    }
-    if (status.behind > 0) {
-      divParts.push(`${status.behind} behind`);
-    }
-    const upstream = status.upstream ? ` of ${status.upstream}` : '';
-    parts.push(divParts.join(', ') + upstream);
-  }
+  const divergence = divergencePart(status);
+  if (divergence) parts.push(divergence);
 
-  // File counts
-  if (conflicted > 0 || staged > 0 || unstaged > 0) {
-    const fileParts: string[] = [];
-    if (staged > 0) {
-      fileParts.push(`${staged} staged`);
-    }
-    if (unstaged > 0) {
-      fileParts.push(`${unstaged} modified`);
-    }
-    if (conflicted > 0) {
-      fileParts.push(`${conflicted} conflict${conflicted > 1 ? 's' : ''}`);
-    }
-    parts.push(fileParts.join(', '));
-  }
+  const files = fileCountsPart(status);
+  if (files) parts.push(files);
 
-  if (parts.length === 1) {
-    parts.push('clean');
-  }
-
+  if (parts.length === 1) parts.push('clean');
   return parts.join(' — ');
 }
 

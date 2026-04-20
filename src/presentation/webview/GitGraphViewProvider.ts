@@ -1,9 +1,13 @@
 import * as vscode from 'vscode';
-import type { BranchSummary, GraphFilters, RepoRemote } from '../../core/models';
+import type { GraphFilters } from '../../core/models';
 import type { GitRepository } from '../../core/ports/GitRepository';
-import { createNonce } from '../../shared/nonce';
+
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '../../shared/protocol';
 import { buildRepoStatusBarText, buildRepoSummary } from '../../shared/repoSummary';
+import { renderHtml } from './GitGraphRenderer';
+import { buildPrUrl, resolvePreferredRemoteForPullRequest } from './GitGraphUtils';
+type MessageType = WebviewToExtensionMessage['type'];
+type PayloadFor<T extends MessageType> = Extract<WebviewToExtensionMessage, { type: T }> extends { payload: infer P } ? P : undefined;
 
 export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'repoFlow.graphPanel';
@@ -33,8 +37,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     _context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken
   ): void {
-    void _context;
-    void _token;
+    // _context and _token are unused but kept in signature for API compatibility
     this.currentView = webviewView;
 
     webviewView.webview.options = {
@@ -45,7 +48,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
       ]
     };
 
-    webviewView.webview.html = this.renderHtml(webviewView.webview);
+    webviewView.webview.html = renderHtml(this.extensionUri, webviewView.webview);
 
     webviewView.webview.onDidReceiveMessage(
       (message: WebviewToExtensionMessage) => { void this.handleMessage(message); },
@@ -94,7 +97,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     );
 
     panel.iconPath = vscode.Uri.joinPath(this.extensionUri, 'media', 'icon.svg');
-    panel.webview.html = this.renderHtml(panel.webview);
+    panel.webview.html = renderHtml(this.extensionUri, panel.webview);
 
     panel.webview.onDidReceiveMessage(
       (message: WebviewToExtensionMessage) => { void this.handleMessage(message); },
@@ -192,518 +195,473 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleMessage(message: WebviewToExtensionMessage): Promise<void> {
-    switch (message.type) {
-      case 'ready':
-        await this.refresh();
-        return;
-      case 'loadMore':
-        this.filters = { ...this.filters, limit: message.payload.limit };
-        await this.refresh();
-        return;
-      case 'applyFilters':
-        this.filters = { ...this.filters, ...message.payload };
-        await this.refresh();
-        return;
-      case 'selectCommit':
-        this.selectedCommitHash = message.payload.commitHash;
-        {
-          const detail = await this.repository.getCommitDetail(message.payload.repoRoot, message.payload.commitHash);
-          await this.postMessage({ type: 'commitDetail', payload: detail });
-        }
-        return;
-      case 'openDiff':
-        await this.repository.openDiff(message.payload);
-        return;
-      case 'createBranchPrompt': {
-        const name = await vscode.window.showInputBox({
-          title: 'Create Branch',
-          prompt: 'New branch name',
-          ignoreFocusOut: true,
-          validateInput: (value) => (value.trim() ? undefined : 'Please enter a branch name.')
-        });
+    const handlers: Partial<{ [K in MessageType]: (payload: PayloadFor<K>) => Promise<void> }> = {
+      ready: async () => this.handleReady(),
+      loadMore: async (p) => this.handleLoadMore(p),
+      applyFilters: async (p) => this.handleApplyFilters(p),
+      selectCommit: async (p) => this.handleSelectCommit(p),
+      openDiff: async (p) => this.handleOpenDiff(p),
+      createBranchPrompt: async (p) => this.handleCreateBranchPrompt(p),
+      deleteBranch: async (p) => this.handleDeleteBranch(p),
+      checkoutCommit: async (p) => this.handleCheckoutCommit(p),
+      cherryPick: async (p) => this.handleCherryPick(p),
+      revertCommit: async (p) => this.handleRevertCommit(p),
+      dropCommit: async (p) => this.handleDropCommit(p),
+      mergeCommit: async (p) => this.handleMergeCommit(p),
+      rebaseOnCommit: async (p) => this.handleRebaseOnCommit(p),
+      resetToCommit: async (p) => this.handleResetToCommit(p),
+      copyHash: async (p) => this.handleCopyHash(p),
+      copySubject: async (p) => this.handleCopySubject(p),
+      openInTerminal: async (p) => this.handleOpenInTerminal(p),
+      stageFile: async (p) => this.handleStageFile(p),
+      unstageFile: async (p) => this.handleUnstageFile(p),
+      discardFile: async (p) => this.handleDiscardFile(p),
+      commitChangesPrompt: async (p) => this.handleCommitChangesPrompt(p),
+      setGitUserName: async (p) => this.handleSetGitUserName(p),
+      setGitUserEmail: async (p) => this.handleSetGitUserEmail(p),
+      setRemoteUrl: async (p) => this.handleSetRemoteUrl(p),
+      openPullRequest: async (p) => this.handleOpenPullRequest(p),
+      listStashes: async (p) => this.handleListStashes(p),
+      stashChanges: async (p) => this.handleStashChanges(p),
+      applyStash: async (p) => this.handleApplyStash(p),
+      popStash: async (p) => this.handlePopStash(p),
+      dropStash: async (p) => this.handleDropStash(p),
+      listWorktrees: async (p) => this.handleListWorktrees(p),
+      addWorktree: async (p) => this.handleAddWorktree(p),
+      removeWorktree: async (p) => this.handleRemoveWorktree(p),
+      openWorktreeInWindow: async (p) => this.handleOpenWorktreeInWindow(p),
+      revealWorktreeInOs: async (p) => this.handleRevealWorktreeInOs(p),
+      copyWorktreePath: async (p) => this.handleCopyWorktreePath(p),
+      lockWorktree: async (p) => this.handleLockWorktree(p),
+      unlockWorktree: async (p) => this.handleUnlockWorktree(p),
+      moveWorktree: async (p) => this.handleMoveWorktree(p),
+      addWorktreeAtCommit: async (p) => this.handleAddWorktreeAtCommit(p),
+      continueOperation: async (p) => this.handleContinueOperation(p),
+      skipOperation: async (p) => this.handleSkipOperation(p),
+      abortOperation: async (p) => this.handleAbortOperation(p),
+      pullRepo: async (p) => this.handlePullRepo(p),
+      pushRepo: async (p) => this.handlePushRepo(p),
+      fetchRepo: async (p) => this.handleFetchRepo(p),
+      openFile: async (p) => this.handleOpenFile(p)
+    };
 
-        if (!name) {
-          return;
-        }
-
-        await this.executeRepositoryAction('Creating branch...', async () => {
-          await this.repository.createBranch(message.payload.repoRoot, name.trim(), message.payload.fromRef);
-        });
-        return;
-      }
-      case 'deleteBranch': {
-        await this.executeRepositoryAction('Deleting branch...', async () => {
-          await this.repository.deleteBranch(message.payload.repoRoot, message.payload.branchName);
-        });
-        return;
-      }
-      case 'checkoutCommit': {
-        const confirmed = await vscode.window.showWarningMessage(
-          `Checkout detached HEAD at ${message.payload.commitHash.slice(0, 8)}?`,
-          { modal: true },
-          'Checkout'
-        );
-
-        if (confirmed !== 'Checkout') {
-          return;
-        }
-
-        await this.executeRepositoryAction('Checking out commit...', async () => {
-          await this.repository.checkout(message.payload.repoRoot, message.payload.commitHash);
-        });
-        return;
-      }
-      case 'cherryPick':
-        await this.executeRepositoryAction('Cherry-picking...', async () => {
-          await this.repository.cherryPick(message.payload.repoRoot, message.payload.commitHash);
-        });
-        return;
-      case 'revertCommit': {
-        const confirmed = await vscode.window.showWarningMessage(
-          `Revert commit ${message.payload.commitHash.slice(0, 8)}?`,
-          { modal: true },
-          'Revert'
-        );
-
-        if (confirmed !== 'Revert') {
-          return;
-        }
-
-        await this.executeRepositoryAction('Reverting commit...', async () => {
-          await this.repository.revert(message.payload.repoRoot, message.payload.commitHash);
-        });
-        return;
-      }
-      case 'dropCommit': {
-        const confirmed = await vscode.window.showWarningMessage(
-          `Drop commit ${message.payload.commitHash.slice(0, 8)}? This rewrites history.`,
-          { modal: true },
-          'Drop'
-        );
-
-        if (confirmed !== 'Drop') {
-          return;
-        }
-
-        await this.executeRepositoryAction('Dropping commit...', async () => {
-          await this.repository.dropCommit(message.payload.repoRoot, message.payload.commitHash);
-        });
-        return;
-      }
-      case 'mergeCommit': {
-        const confirmed = await vscode.window.showWarningMessage(
-          `Merge commit ${message.payload.commitHash.slice(0, 8)} into the current branch?`,
-          { modal: true },
-          'Merge'
-        );
-
-        if (confirmed !== 'Merge') {
-          return;
-        }
-
-        await this.executeRepositoryAction('Merging...', async () => {
-          await this.repository.merge(message.payload.repoRoot, message.payload.commitHash);
-        });
-        return;
-      }
-      case 'rebaseOnCommit': {
-        const confirmed = await vscode.window.showWarningMessage(
-          `Rebase current branch onto commit ${message.payload.commitHash.slice(0, 8)}?`,
-          { modal: true },
-          'Rebase'
-        );
-
-        if (confirmed !== 'Rebase') {
-          return;
-        }
-
-        await this.executeRepositoryAction('Rebasing...', async () => {
-          await this.repository.rebase(message.payload.repoRoot, message.payload.commitHash);
-        });
-        return;
-      }
-      case 'resetToCommit': {
-        const mode = await vscode.window.showQuickPick(
-          [
-            { label: 'Soft', description: 'Keep changes staged', value: 'soft' as const },
-            { label: 'Mixed', description: 'Keep changes in working tree', value: 'mixed' as const },
-            { label: 'Hard', description: 'Discard all changes', value: 'hard' as const }
-          ],
-          { title: `Reset to ${message.payload.commitHash.slice(0, 8)}`, placeHolder: 'Select reset mode' }
-        );
-
-        if (!mode) {
-          return;
-        }
-
-        const confirmed = await vscode.window.showWarningMessage(
-          `Reset (${mode.label}) current branch to ${message.payload.commitHash.slice(0, 8)}?`,
-          { modal: true },
-          'Reset'
-        );
-
-        if (confirmed !== 'Reset') {
-          return;
-        }
-
-        await this.executeRepositoryAction('Resetting...', async () => {
-          await this.repository.resetTo(message.payload.repoRoot, message.payload.commitHash, mode.value);
-        });
-        return;
-      }
-      case 'copyHash':
-        await vscode.env.clipboard.writeText(message.payload.hash);
-        await this.postNotification('info', 'Hash copied to clipboard.');
-        return;
-      case 'copySubject':
-        await vscode.env.clipboard.writeText(message.payload.subject);
-        await this.postNotification('info', 'Subject copied to clipboard.');
-        return;
-      case 'openInTerminal': {
-        const hash = message.payload.commitHash;
-        if (!/^[0-9a-f]{4,40}$/i.test(hash)) {
-          await this.postNotification('error', 'Invalid commit hash.');
-          return;
-        }
-        const terminal = vscode.window.createTerminal({ cwd: message.payload.repoRoot, name: 'RepoFlow' });
-        terminal.show();
-        terminal.sendText(`git show --stat ${hash}`, true);
-        return;
-      }
-      case 'stageFile':
-        await this.executeRepositoryAction('Staging file...', async () => {
-          await this.repository.stageFile(message.payload.repoRoot, message.payload.file.path);
-        });
-        return;
-      case 'unstageFile':
-        await this.executeRepositoryAction('Unstaging file...', async () => {
-          await this.repository.unstageFile(message.payload.repoRoot, message.payload.file.path);
-        });
-        return;
-      case 'discardFile': {
-        const confirmed = await vscode.window.showWarningMessage(
-          `Discard changes in ${message.payload.file.path}?`,
-          { modal: true },
-          'Discard'
-        );
-
-        if (confirmed !== 'Discard') {
-          return;
-        }
-
-        const tracked = message.payload.file.indexStatus !== '?' && message.payload.file.workTreeStatus !== '?';
-        await this.executeRepositoryAction('Discarding changes...', async () => {
-          await this.repository.discardFile(message.payload.repoRoot, message.payload.file.path, tracked);
-        });
-        return;
-      }
-      case 'commitChangesPrompt': {
-        const messageText = await vscode.window.showInputBox({
-          title: 'Commit Changes',
-          prompt: 'Commit message',
-          ignoreFocusOut: true,
-          validateInput: (value) => (value.trim() ? undefined : 'Please enter a commit message.')
-        });
-
-        if (!messageText) {
-          return;
-        }
-
-        await this.executeRepositoryAction('Committing...', async () => {
-          await this.repository.commit(message.payload.repoRoot, messageText.trim());
-        });
-        return;
-      }
-      case 'setGitUserName': {
-        await this.executeRepositoryAction('Saving user.name...', async () => {
-          await this.repository.setGitUserName(message.payload.repoRoot, message.payload.name);
-        });
-        return;
-      }
-      case 'setGitUserEmail': {
-        await this.executeRepositoryAction('Saving user.email...', async () => {
-          await this.repository.setGitUserEmail(message.payload.repoRoot, message.payload.email);
-        });
-        return;
-      }
-      case 'setRemoteUrl': {
-        await this.executeRepositoryAction('Saving remote URL...', async () => {
-          await this.repository.setRemoteUrl(message.payload.repoRoot, message.payload.remoteName, message.payload.url);
-        });
-        return;
-      }
-      case 'openPullRequest': {
-        const { repoRoot, sourceBranch, targetBranch, title, description } = message.payload;
-        const [config, branches] = await Promise.all([
-          this.repository.getRepoConfig(repoRoot),
-          this.repository.getBranches(repoRoot)
-        ]);
-        const remote = this.resolvePreferredRemoteForPullRequest(sourceBranch, branches, config.remotes);
-        const remoteUrl = remote?.url ?? '';
-
-        // Detect GitHub / GitLab / Bitbucket and build the compare URL
-        const prUrl = this.buildPrUrl(remoteUrl, sourceBranch, targetBranch, title, description);
-        if (prUrl) {
-          await vscode.env.openExternal(vscode.Uri.parse(prUrl));
-        } else {
-          await vscode.window.showWarningMessage(
-            `Could not detect PR URL. Remote: ${remoteUrl || '(none)'}`
-          );
-        }
-        return;
-      }
-      case 'listStashes': {
-        const entries = await this.repository.listStashes(message.payload.repoRoot);
-        await this.postMessage({ type: 'stashList', payload: { entries } });
-        return;
-      }
-      case 'stashChanges': {
-        await this.executeRepositoryAction('Stashing changes...', async () => {
-          await this.repository.stashChanges(
-            message.payload.repoRoot,
-            message.payload.message,
-            message.payload.includeUntracked
-          );
-        });
-        const entries = await this.repository.listStashes(message.payload.repoRoot);
-        await this.postMessage({ type: 'stashList', payload: { entries } });
-        return;
-      }
-      case 'applyStash': {
-        await this.executeRepositoryAction('Applying stash...', async () => {
-          await this.repository.applyStash(message.payload.repoRoot, message.payload.ref);
-        });
-        const entries = await this.repository.listStashes(message.payload.repoRoot);
-        await this.postMessage({ type: 'stashList', payload: { entries } });
-        return;
-      }
-      case 'popStash': {
-        await this.executeRepositoryAction('Popping stash...', async () => {
-          await this.repository.popStash(message.payload.repoRoot, message.payload.ref);
-        });
-        const entries = await this.repository.listStashes(message.payload.repoRoot);
-        await this.postMessage({ type: 'stashList', payload: { entries } });
-        return;
-      }
-      case 'dropStash': {
-        const confirmed = await vscode.window.showWarningMessage(
-          `Drop stash ${message.payload.ref}?`,
-          { modal: true },
-          'Drop'
-        );
-
-        if (confirmed !== 'Drop') {
-          return;
-        }
-
-        await this.executeRepositoryAction('Dropping stash...', async () => {
-          await this.repository.dropStash(message.payload.repoRoot, message.payload.ref);
-        });
-        const entries = await this.repository.listStashes(message.payload.repoRoot);
-        await this.postMessage({ type: 'stashList', payload: { entries } });
-        return;
-      }
-      case 'listWorktrees': {
-        const worktrees = await this.repository.listWorktrees(message.payload.repoRoot);
-        await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
-        return;
-      }
-      case 'addWorktree': {
-        const { repoRoot, branch, createNew, worktreePath } = message.payload;
-        try {
-          await this.withBusy('Adding worktree...', async () => {
-            await this.repository.addWorktree(repoRoot, worktreePath.trim(), branch, createNew);
-          });
-          const worktrees = await this.repository.listWorktrees(repoRoot);
-          await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error);
-          this.output.appendLine(`[worktree-add] ${msg}`);
-          await this.postMessage({ type: 'worktreeError', payload: { message: msg } });
-        }
-        return;
-      }
-      case 'removeWorktree': {
-        const { repoRoot, path: worktreePath, force } = message.payload;
-        try {
-          await this.withBusy('Removing worktree...', async () => {
-            await this.repository.removeWorktree(repoRoot, worktreePath, force);
-            await this.repository.pruneWorktrees(repoRoot);
-          });
-          const worktrees = await this.repository.listWorktrees(repoRoot);
-          await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error);
-          this.output.appendLine(`[worktree-remove] ${msg}`);
-          await this.postMessage({
-            type: 'worktreeError',
-            payload: { message: msg, path: worktreePath, canForce: !force }
-          });
-        }
-        return;
-      }
-      case 'openWorktreeInWindow': {
-        await vscode.commands.executeCommand(
-          'vscode.openFolder',
-          vscode.Uri.file(message.payload.path),
-          { forceNewWindow: true }
-        );
-        return;
-      }
-      case 'revealWorktreeInOs': {
-        await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(message.payload.path));
-        return;
-      }
-      case 'copyWorktreePath': {
-        await vscode.env.clipboard.writeText(message.payload.path);
-        return;
-      }
-      case 'lockWorktree': {
-        const { repoRoot, path: worktreePath } = message.payload;
-        try {
-          await this.repository.lockWorktree(repoRoot, worktreePath);
-          const worktrees = await this.repository.listWorktrees(repoRoot);
-          await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error);
-          this.output.appendLine(`[worktree-lock] ${msg}`);
-          await this.postMessage({ type: 'worktreeError', payload: { message: msg } });
-        }
-        return;
-      }
-      case 'unlockWorktree': {
-        const { repoRoot, path: worktreePath } = message.payload;
-        try {
-          await this.repository.unlockWorktree(repoRoot, worktreePath);
-          const worktrees = await this.repository.listWorktrees(repoRoot);
-          await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error);
-          this.output.appendLine(`[worktree-unlock] ${msg}`);
-          await this.postMessage({ type: 'worktreeError', payload: { message: msg } });
-        }
-        return;
-      }
-      case 'moveWorktree': {
-        const { repoRoot, path: worktreePath, newPath } = message.payload;
-        try {
-          await this.withBusy('Moving worktree...', async () => {
-            await this.repository.moveWorktree(repoRoot, worktreePath, newPath);
-          });
-          const worktrees = await this.repository.listWorktrees(repoRoot);
-          await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error);
-          this.output.appendLine(`[worktree-move] ${msg}`);
-          await this.postMessage({ type: 'worktreeError', payload: { message: msg } });
-        }
-        return;
-      }
-      case 'addWorktreeAtCommit': {
-        const { repoRoot, worktreePath, commitHash } = message.payload;
-        try {
-          await this.withBusy('Adding detached worktree...', async () => {
-            await this.repository.addWorktreeAtCommit(repoRoot, worktreePath.trim(), commitHash.trim());
-          });
-          const worktrees = await this.repository.listWorktrees(repoRoot);
-          await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error);
-          this.output.appendLine(`[worktree-add-detached] ${msg}`);
-          await this.postMessage({ type: 'worktreeError', payload: { message: msg } });
-        }
-        return;
-      }
-      case 'continueOperation':
-        await this.executeRepositoryAction('Continuing...', async () => {
-          await this.repository.continueOperation(message.payload.repoRoot, message.payload.state as import('../../core/models').RepoSpecialState);
-        });
-        return;
-      case 'skipOperation':
-        await this.executeRepositoryAction('Skipping...', async () => {
-          await this.repository.skipRebaseOperation(message.payload.repoRoot);
-        });
-        return;
-      case 'abortOperation':
-        await this.executeRepositoryAction('Aborting...', async () => {
-          await this.repository.abortOperation(message.payload.repoRoot, message.payload.state as import('../../core/models').RepoSpecialState);
-        });
-        return;
-      case 'pullRepo':
-        await this.executeRepositoryAction('Pulling...', async () => {
-          await this.repository.pull(message.payload.repoRoot);
-        });
-        return;
-      case 'pushRepo':
-        await this.executeRepositoryAction('Pushing...', async () => {
-          await this.repository.push(message.payload.repoRoot);
-        });
-        return;
-      case 'fetchRepo':
-        await this.executeRepositoryAction('Fetching...', async () => {
-          await this.repository.fetch(message.payload.repoRoot);
-        });
-        return;
-      case 'openFile': {
-        const nodePath = await import('node:path');
-        const fullPath = vscode.Uri.file(
-          nodePath.join(message.payload.repoRoot, message.payload.filePath)
-        );
-        const doc = await vscode.workspace.openTextDocument(fullPath);
-        await vscode.window.showTextDocument(doc, { preserveFocus: false, preview: false });
-        return;
-      }
-      default:
-        return;
+    const handler = handlers[message.type];
+    if (handler) {
+      const payload = (message as WebviewToExtensionMessage & { payload?: unknown }).payload;
+      await (handler as (p: unknown) => Promise<void>)(payload);
     }
   }
 
-  private resolvePreferredRemoteForPullRequest(sourceBranch: string, branches: BranchSummary[], remotes: RepoRemote[]): RepoRemote | undefined {
-    if (remotes.length === 0) {
-      return undefined;
-    }
-
-    const source = branches.find((branch) => !branch.remote && branch.shortName === sourceBranch);
-    const upstreamRemoteName = source?.upstream?.split('/')[0];
-    if (upstreamRemoteName) {
-      const upstreamRemote = remotes.find((remote) => remote.name === upstreamRemoteName);
-      if (upstreamRemote) {
-        return upstreamRemote;
-      }
-    }
-
-    const origin = remotes.find((remote) => remote.name === 'origin');
-    return origin ?? remotes[0];
+  private async handleReady(): Promise<void> {
+    await this.refresh();
   }
 
-  private buildPrUrl(remoteUrl: string, source: string, target: string, title: string, description: string): string | null {
-    // Normalize SSH → HTTPS
-    const normalized = remoteUrl
-      .replace(/^git@github\.com:/, 'https://github.com/')
-      .replace(/^git@gitlab\.com:/, 'https://gitlab.com/')
-      .replace(/^git@bitbucket\.org:/, 'https://bitbucket.org/')
-      .replace(/\.git$/, '');
-
-    const enc = encodeURIComponent;
-    const encodedTitle = title ? `&title=${enc(title)}` : '';
-    const encodedDescription = description ? `&body=${enc(description)}` : '';
-
-    if (/github\.com/.test(normalized)) {
-      const base = `${normalized}/compare/${enc(target)}...${enc(source)}`;
-      const params = `?quick_pull=1${encodedTitle}${encodedDescription}`;
-      return base + params;
-    }
-
-    if (/gitlab\.com/.test(normalized)) {
-      return `${normalized}/-/merge_requests/new?merge_request[source_branch]=${enc(source)}&merge_request[target_branch]=${enc(target)}${title ? `&merge_request[title]=${enc(title)}` : ''}${description ? `&merge_request[description]=${enc(description)}` : ''}`;
-    }
-
-    if (/bitbucket\.org/.test(normalized)) {
-      return `${normalized}/pull-requests/new?source=${enc(source)}&dest=${enc(target)}${title ? `&title=${enc(title)}` : ''}${description ? `&description=${enc(description)}` : ''}`;
-    }
-
-    return null;
+  private async handleLoadMore(payload: PayloadFor<'loadMore'>): Promise<void> {
+    this.filters = { ...this.filters, limit: payload.limit };
+    await this.refresh();
   }
+
+  private async handleApplyFilters(payload: PayloadFor<'applyFilters'>): Promise<void> {
+    this.filters = { ...this.filters, ...payload };
+    await this.refresh();
+  }
+
+  private async handleSelectCommit(payload: PayloadFor<'selectCommit'>): Promise<void> {
+    this.selectedCommitHash = payload.commitHash;
+    const detail = await this.repository.getCommitDetail(payload.repoRoot, payload.commitHash);
+    await this.postMessage({ type: 'commitDetail', payload: detail });
+  }
+
+  private async handleOpenDiff(payload: PayloadFor<'openDiff'>): Promise<void> {
+    await this.repository.openDiff(payload);
+  }
+
+  private async handleCreateBranchPrompt(payload: PayloadFor<'createBranchPrompt'>): Promise<void> {
+    const name = await vscode.window.showInputBox({
+      title: 'Create Branch',
+      prompt: 'New branch name',
+      ignoreFocusOut: true,
+      validateInput: (value) => (value.trim() ? undefined : 'Please enter a branch name.')
+    });
+    if (!name) return;
+    await this.executeRepositoryAction('Creating branch...', async () => {
+      await this.repository.createBranch(payload.repoRoot, name.trim(), payload.fromRef);
+    });
+  }
+
+  private async handleDeleteBranch(payload: PayloadFor<'deleteBranch'>): Promise<void> {
+    await this.executeRepositoryAction('Deleting branch...', async () => {
+      await this.repository.deleteBranch(payload.repoRoot, payload.branchName);
+    });
+  }
+
+  private async handleCheckoutCommit(payload: PayloadFor<'checkoutCommit'>): Promise<void> {
+    const confirmed = await vscode.window.showWarningMessage(
+      `Checkout detached HEAD at ${payload.commitHash.slice(0, 8)}?`,
+      { modal: true },
+      'Checkout'
+    );
+    if (confirmed !== 'Checkout') return;
+    await this.executeRepositoryAction('Checking out commit...', async () => {
+      await this.repository.checkout(payload.repoRoot, payload.commitHash);
+    });
+  }
+
+  private async handleCherryPick(payload: PayloadFor<'cherryPick'>): Promise<void> {
+    await this.executeRepositoryAction('Cherry-picking...', async () => {
+      await this.repository.cherryPick(payload.repoRoot, payload.commitHash);
+    });
+  }
+
+  private async handleRevertCommit(payload: PayloadFor<'revertCommit'>): Promise<void> {
+    const confirmed = await vscode.window.showWarningMessage(
+      `Revert commit ${payload.commitHash.slice(0, 8)}?`,
+      { modal: true },
+      'Revert'
+    );
+    if (confirmed !== 'Revert') return;
+    await this.executeRepositoryAction('Reverting commit...', async () => {
+      await this.repository.revert(payload.repoRoot, payload.commitHash);
+    });
+  }
+
+  private async handleDropCommit(payload: PayloadFor<'dropCommit'>): Promise<void> {
+    const confirmed = await vscode.window.showWarningMessage(
+      `Drop commit ${payload.commitHash.slice(0, 8)}? This rewrites history.`,
+      { modal: true },
+      'Drop'
+    );
+    if (confirmed !== 'Drop') return;
+    await this.executeRepositoryAction('Dropping commit...', async () => {
+      await this.repository.dropCommit(payload.repoRoot, payload.commitHash);
+    });
+  }
+
+  private async handleMergeCommit(payload: PayloadFor<'mergeCommit'>): Promise<void> {
+    const confirmed = await vscode.window.showWarningMessage(
+      `Merge commit ${payload.commitHash.slice(0, 8)} into the current branch?`,
+      { modal: true },
+      'Merge'
+    );
+    if (confirmed !== 'Merge') return;
+    await this.executeRepositoryAction('Merging...', async () => {
+      await this.repository.merge(payload.repoRoot, payload.commitHash);
+    });
+  }
+
+  private async handleRebaseOnCommit(payload: PayloadFor<'rebaseOnCommit'>): Promise<void> {
+    const confirmed = await vscode.window.showWarningMessage(
+      `Rebase current branch onto commit ${payload.commitHash.slice(0, 8)}?`,
+      { modal: true },
+      'Rebase'
+    );
+    if (confirmed !== 'Rebase') return;
+    await this.executeRepositoryAction('Rebasing...', async () => {
+      await this.repository.rebase(payload.repoRoot, payload.commitHash);
+    });
+  }
+
+  private async handleResetToCommit(payload: PayloadFor<'resetToCommit'>): Promise<void> {
+    const mode = await vscode.window.showQuickPick(
+      [
+        { label: 'Soft', description: 'Keep changes staged', value: 'soft' as const },
+        { label: 'Mixed', description: 'Keep changes in working tree', value: 'mixed' as const },
+        { label: 'Hard', description: 'Discard all changes', value: 'hard' as const }
+      ],
+      { title: `Reset to ${payload.commitHash.slice(0, 8)}`, placeHolder: 'Select reset mode' }
+    );
+    if (!mode) return;
+    const confirmed = await vscode.window.showWarningMessage(
+      `Reset (${mode.label}) current branch to ${payload.commitHash.slice(0, 8)}?`,
+      { modal: true },
+      'Reset'
+    );
+    if (confirmed !== 'Reset') return;
+    await this.executeRepositoryAction('Resetting...', async () => {
+      await this.repository.resetTo(payload.repoRoot, payload.commitHash, mode.value);
+    });
+  }
+
+  private async handleCopyHash(payload: PayloadFor<'copyHash'>): Promise<void> {
+    await vscode.env.clipboard.writeText(payload.hash);
+    await this.postNotification('info', 'Hash copied to clipboard.');
+  }
+
+  private async handleCopySubject(payload: PayloadFor<'copySubject'>): Promise<void> {
+    await vscode.env.clipboard.writeText(payload.subject);
+    await this.postNotification('info', 'Subject copied to clipboard.');
+  }
+
+  private async handleOpenInTerminal(payload: PayloadFor<'openInTerminal'>): Promise<void> {
+    const hash = payload.commitHash;
+    if (!/^[0-9a-f]{4,40}$/i.test(hash)) {
+      await this.postNotification('error', 'Invalid commit hash.');
+      return;
+    }
+    const terminal = vscode.window.createTerminal({ cwd: payload.repoRoot, name: 'RepoFlow' });
+    terminal.show();
+    terminal.sendText(`git show --stat ${hash}`, true);
+  }
+
+  private async handleStageFile(payload: PayloadFor<'stageFile'>): Promise<void> {
+    await this.executeRepositoryAction('Staging file...', async () => {
+      await this.repository.stageFile(payload.repoRoot, payload.file.path);
+    });
+  }
+
+  private async handleUnstageFile(payload: PayloadFor<'unstageFile'>): Promise<void> {
+    await this.executeRepositoryAction('Unstaging file...', async () => {
+      await this.repository.unstageFile(payload.repoRoot, payload.file.path);
+    });
+  }
+
+  private async handleDiscardFile(payload: PayloadFor<'discardFile'>): Promise<void> {
+    const confirmed = await vscode.window.showWarningMessage(
+      `Discard changes in ${payload.file.path}?`,
+      { modal: true },
+      'Discard'
+    );
+    if (confirmed !== 'Discard') return;
+    const tracked = payload.file.indexStatus !== '?' && payload.file.workTreeStatus !== '?';
+    await this.executeRepositoryAction('Discarding changes...', async () => {
+      await this.repository.discardFile(payload.repoRoot, payload.file.path, tracked);
+    });
+  }
+
+  private async handleCommitChangesPrompt(payload: PayloadFor<'commitChangesPrompt'>): Promise<void> {
+    const messageText = await vscode.window.showInputBox({
+      title: 'Commit Changes',
+      prompt: 'Commit message',
+      ignoreFocusOut: true,
+      validateInput: (value) => (value.trim() ? undefined : 'Please enter a commit message.')
+    });
+    if (!messageText) return;
+    await this.executeRepositoryAction('Committing...', async () => {
+      await this.repository.commit(payload.repoRoot, messageText.trim());
+    });
+  }
+
+  private async handleSetGitUserName(payload: PayloadFor<'setGitUserName'>): Promise<void> {
+    await this.executeRepositoryAction('Saving user.name...', async () => {
+      await this.repository.setGitUserName(payload.repoRoot, payload.name);
+    });
+  }
+
+  private async handleSetGitUserEmail(payload: PayloadFor<'setGitUserEmail'>): Promise<void> {
+    await this.executeRepositoryAction('Saving user.email...', async () => {
+      await this.repository.setGitUserEmail(payload.repoRoot, payload.email);
+    });
+  }
+
+  private async handleSetRemoteUrl(payload: PayloadFor<'setRemoteUrl'>): Promise<void> {
+    await this.executeRepositoryAction('Saving remote URL...', async () => {
+      await this.repository.setRemoteUrl(payload.repoRoot, payload.remoteName, payload.url);
+    });
+  }
+
+  private async handleOpenPullRequest(payload: PayloadFor<'openPullRequest'>): Promise<void> {
+    const { repoRoot, sourceBranch, targetBranch, title, description } = payload;
+    const [config, branches] = await Promise.all([
+      this.repository.getRepoConfig(repoRoot),
+      this.repository.getBranches(repoRoot)
+    ]);
+    const remote = resolvePreferredRemoteForPullRequest(sourceBranch, branches, config.remotes);
+    const remoteUrl = remote?.url ?? '';
+    const prUrl = buildPrUrl(remoteUrl, sourceBranch, targetBranch, title, description);
+    if (prUrl) {
+      await vscode.env.openExternal(vscode.Uri.parse(prUrl));
+    } else {
+      await vscode.window.showWarningMessage(`Could not detect PR URL. Remote: ${remoteUrl || '(none)'}`);
+    }
+  }
+
+  private async handleListStashes(payload: PayloadFor<'listStashes'>): Promise<void> {
+    const entries = await this.repository.listStashes(payload.repoRoot);
+    await this.postMessage({ type: 'stashList', payload: { entries } });
+  }
+
+  private async handleStashChanges(payload: PayloadFor<'stashChanges'>): Promise<void> {
+    await this.executeRepositoryAction('Stashing changes...', async () => {
+      await this.repository.stashChanges(payload.repoRoot, payload.message, payload.includeUntracked);
+    });
+    const entries = await this.repository.listStashes(payload.repoRoot);
+    await this.postMessage({ type: 'stashList', payload: { entries } });
+  }
+
+  private async handleApplyStash(payload: PayloadFor<'applyStash'>): Promise<void> {
+    await this.executeRepositoryAction('Applying stash...', async () => {
+      await this.repository.applyStash(payload.repoRoot, payload.ref);
+    });
+    const entries = await this.repository.listStashes(payload.repoRoot);
+    await this.postMessage({ type: 'stashList', payload: { entries } });
+  }
+
+  private async handlePopStash(payload: PayloadFor<'popStash'>): Promise<void> {
+    await this.executeRepositoryAction('Popping stash...', async () => {
+      await this.repository.popStash(payload.repoRoot, payload.ref);
+    });
+    const entries = await this.repository.listStashes(payload.repoRoot);
+    await this.postMessage({ type: 'stashList', payload: { entries } });
+  }
+
+  private async handleDropStash(payload: PayloadFor<'dropStash'>): Promise<void> {
+    const confirmed = await vscode.window.showWarningMessage(`Drop stash ${payload.ref}?`, { modal: true }, 'Drop');
+    if (confirmed !== 'Drop') return;
+    await this.executeRepositoryAction('Dropping stash...', async () => {
+      await this.repository.dropStash(payload.repoRoot, payload.ref);
+    });
+    const entries = await this.repository.listStashes(payload.repoRoot);
+    await this.postMessage({ type: 'stashList', payload: { entries } });
+  }
+
+  private async handleListWorktrees(payload: PayloadFor<'listWorktrees'>): Promise<void> {
+    const worktrees = await this.repository.listWorktrees(payload.repoRoot);
+    await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
+  }
+
+  private async handleAddWorktree(payload: PayloadFor<'addWorktree'>): Promise<void> {
+    const { repoRoot, branch, createNew, worktreePath } = payload;
+    try {
+      await this.withBusy('Adding worktree...', async () => {
+        await this.repository.addWorktree(repoRoot, worktreePath.trim(), branch, createNew);
+      });
+      const worktrees = await this.repository.listWorktrees(repoRoot);
+      await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.output.appendLine(`[worktree-add] ${msg}`);
+      await this.postMessage({ type: 'worktreeError', payload: { message: msg } });
+    }
+  }
+
+  private async handleRemoveWorktree(payload: PayloadFor<'removeWorktree'>): Promise<void> {
+    const { repoRoot, path: worktreePath, force } = payload;
+    try {
+      await this.withBusy('Removing worktree...', async () => {
+        await this.repository.removeWorktree(repoRoot, worktreePath, force);
+        await this.repository.pruneWorktrees(repoRoot);
+      });
+      const worktrees = await this.repository.listWorktrees(repoRoot);
+      await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.output.appendLine(`[worktree-remove] ${msg}`);
+      await this.postMessage({ type: 'worktreeError', payload: { message: msg, path: worktreePath, canForce: !force } });
+    }
+  }
+
+  private async handleOpenWorktreeInWindow(payload: PayloadFor<'openWorktreeInWindow'>): Promise<void> {
+    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(payload.path), { forceNewWindow: true });
+  }
+
+  private async handleRevealWorktreeInOs(payload: PayloadFor<'revealWorktreeInOs'>): Promise<void> {
+    await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(payload.path));
+  }
+
+  private async handleCopyWorktreePath(payload: PayloadFor<'copyWorktreePath'>): Promise<void> {
+    await vscode.env.clipboard.writeText(payload.path);
+  }
+
+  private async handleLockWorktree(payload: PayloadFor<'lockWorktree'>): Promise<void> {
+    const { repoRoot, path: worktreePath } = payload;
+    try {
+      await this.repository.lockWorktree(repoRoot, worktreePath);
+      const worktrees = await this.repository.listWorktrees(repoRoot);
+      await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.output.appendLine(`[worktree-lock] ${msg}`);
+      await this.postMessage({ type: 'worktreeError', payload: { message: msg } });
+    }
+  }
+
+  private async handleUnlockWorktree(payload: PayloadFor<'unlockWorktree'>): Promise<void> {
+    const { repoRoot, path: worktreePath } = payload;
+    try {
+      await this.repository.unlockWorktree(repoRoot, worktreePath);
+      const worktrees = await this.repository.listWorktrees(repoRoot);
+      await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.output.appendLine(`[worktree-unlock] ${msg}`);
+      await this.postMessage({ type: 'worktreeError', payload: { message: msg } });
+    }
+  }
+
+  private async handleMoveWorktree(payload: PayloadFor<'moveWorktree'>): Promise<void> {
+    const { repoRoot, path: worktreePath, newPath } = payload;
+    try {
+      await this.withBusy('Moving worktree...', async () => {
+        await this.repository.moveWorktree(repoRoot, worktreePath, newPath);
+      });
+      const worktrees = await this.repository.listWorktrees(repoRoot);
+      await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.output.appendLine(`[worktree-move] ${msg}`);
+      await this.postMessage({ type: 'worktreeError', payload: { message: msg } });
+    }
+  }
+
+  private async handleAddWorktreeAtCommit(payload: PayloadFor<'addWorktreeAtCommit'>): Promise<void> {
+    const { repoRoot, worktreePath, commitHash } = payload;
+    try {
+      await this.withBusy('Adding detached worktree...', async () => {
+        await this.repository.addWorktreeAtCommit(repoRoot, worktreePath.trim(), commitHash.trim());
+      });
+      const worktrees = await this.repository.listWorktrees(repoRoot);
+      await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.output.appendLine(`[worktree-add-detached] ${msg}`);
+      await this.postMessage({ type: 'worktreeError', payload: { message: msg } });
+    }
+  }
+
+  private async handleContinueOperation(payload: PayloadFor<'continueOperation'>): Promise<void> {
+    await this.executeRepositoryAction('Continuing...', async () => {
+      await this.repository.continueOperation(payload.repoRoot, payload.state as import('../../core/models').RepoSpecialState);
+    });
+  }
+
+  private async handleSkipOperation(payload: PayloadFor<'skipOperation'>): Promise<void> {
+    await this.executeRepositoryAction('Skipping...', async () => {
+      await this.repository.skipRebaseOperation(payload.repoRoot);
+    });
+  }
+
+  private async handleAbortOperation(payload: PayloadFor<'abortOperation'>): Promise<void> {
+    await this.executeRepositoryAction('Aborting...', async () => {
+      await this.repository.abortOperation(payload.repoRoot, payload.state as import('../../core/models').RepoSpecialState);
+    });
+  }
+
+  private async handlePullRepo(payload: PayloadFor<'pullRepo'>): Promise<void> {
+    await this.executeRepositoryAction('Pulling...', async () => {
+      await this.repository.pull(payload.repoRoot);
+    });
+  }
+
+  private async handlePushRepo(payload: PayloadFor<'pushRepo'>): Promise<void> {
+    await this.executeRepositoryAction('Pushing...', async () => {
+      await this.repository.push(payload.repoRoot);
+    });
+  }
+
+  private async handleFetchRepo(payload: PayloadFor<'fetchRepo'>): Promise<void> {
+    await this.executeRepositoryAction('Fetching...', async () => {
+      await this.repository.fetch(payload.repoRoot);
+    });
+  }
+
+  private async handleOpenFile(payload: PayloadFor<'openFile'>): Promise<void> {
+    const nodePath = await import('node:path');
+    const fullPath = vscode.Uri.file(nodePath.join(payload.repoRoot, payload.filePath));
+    const doc = await vscode.workspace.openTextDocument(fullPath);
+    await vscode.window.showTextDocument(doc, { preserveFocus: false, preview: false });
+  }
+
+  // Remote/PR helpers moved to GitGraphUtils.ts
 
   private async executeRepositoryAction(label: string, action: () => Promise<void>): Promise<void> {
     await this.withBusy(label, async () => {
@@ -744,37 +702,5 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     await Promise.all(sends);
   }
 
-  private renderHtml(webview: vscode.Webview): string {
-    const nonce = createNonce();
-    const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview', 'index.js'));
-    const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview', 'index.css'));
-    const iconUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'hero.svg'));
-    const csp = [
-      "default-src 'none'",
-      `img-src ${webview.cspSource} https: data:`,
-      `style-src ${webview.cspSource} 'unsafe-inline'`,
-      `font-src ${webview.cspSource} data:`,
-      `script-src 'nonce-${nonce}'`
-    ].join('; ');
 
-    return `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="${csp}" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="${styleUri}" />
-    <title>RepoFlow</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script nonce="${nonce}">
-      window.__REPOFLOW_ASSETS__ = {
-        hero: '${iconUri}'
-      };
-    </script>
-    <script nonce="${nonce}" type="module" src="${scriptUri}"></script>
-  </body>
-</html>`;
-  }
 }

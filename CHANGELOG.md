@@ -1,12 +1,26 @@
 # Changelog
 
+## 1.1.9 — 2026-04-20
+
+- **Changed:** Refactor `buildRepoSummary` to simplify summary construction and reduce cognitive complexity.
+- **Fixed:** Deleting a remote branch that no longer exists no longer surfaces an unhandled git error. The extension now prunes local remote-tracking refs (runs `git fetch --all --prune`) and shows a friendly message so the Branches view refreshes and stale remote refs are removed.
+- **Refactor:** Simplified `parseWorktreeStatusV2` (reduced cognitive complexity) and updated the branch-ab regex to use `\d`.
+- **Refactor:** Simplified `parseBlameOutput` by extracting metadata parsing into `readBlameMeta`, inverted a negated condition for clarity, and lowered overall complexity.
+- **Fixed:** Implemented a best-effort `openFile` fallback in `GitCliRepository` so callers that use the view port will open files in the editor; failures are logged to the extension output.
+- **Chore:** Minor lint/code-style tweaks.
+
+## Included commits - 1.1.9
+
+- [08c5417](https://github.com/farigab/repoFlow/commit/08c54170915d7e6a25d3af498bb0c2572a796c16) — refactor: streamline repo summary construction by modularizing helper functions
+- [3ac30be](https://github.com/farigab/repoFlow/commit/3ac30beb859a10f2c736927b3ecc5c67ffd7db13) — refactor: enhance error handling in deleteRemoteBranch function and improve path escaping
+
 ## 1.1.8 — 2026-04-19
 
 - **Added:** Centralized Git watchers and registration for repository events; improved command registration for repo-level actions.
 - **Changed:** Refactor of model imports and module structure to reduce coupling and simplify component wiring.
 - **Fixed:** Add watcher for `COMMIT_EDITMSG` to improve detection of special Git states (merge/rebase/cherry-pick).
 
-## Included commits
+## Included commits - 1.1.8
 
 - [1dda154](https://github.com/farigab/repoFlow/commit/1dda154) — feat: implement Git watchers and command registration for improved repository management
 - [7b7b801](https://github.com/farigab/repoFlow/commit/7b7b801) — fix: add file system watcher for COMMIT_EDITMSG to enhance Git state tracking
