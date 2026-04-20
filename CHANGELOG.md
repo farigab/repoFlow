@@ -1,15 +1,12 @@
 # Changelog
 
-## 1.1.9
+## 1.1.9 — 2026-04-20
 
 - **Changed:** Refactor `buildRepoSummary` to simplify summary construction and reduce cognitive complexity.
-- **Fixed:** Correct package version format in `package.json` and `package-lock.json` to `1.1.8-preview` (removed invalid space) to satisfy VS Code extension manifest requirements.
-- **Build:** Packaged VSIX `repoflow-1.1.8-preview.vsix`.
 
 ## Included commits - 1.1.9
 
 - [08c5417](https://github.com/farigab/repoFlow/commit/08c54170915d7e6a25d3af498bb0c2572a796c16) — refactor: streamline repo summary construction by modularizing helper functions
-- [b3b3538](https://github.com/farigab/repoFlow/commit/b3b35382f7512c2ada70f576639f603a8dad97bd) — chore: update version to 1.1.8 in package.json and package-lock.json; update changelog for new features and fixes
 
 ## 1.1.8 — 2026-04-19
 
