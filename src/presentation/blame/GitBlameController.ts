@@ -231,8 +231,15 @@ export class GitBlameController implements vscode.Disposable {
       }
 
       const entry = cached.byLine[line];
+
+      // Line has no blame data — happens when the document has unsaved changes
+      // and the cursor is on a new/modified line that git hasn't seen yet.
       if (!entry) {
-        this.clearDecoration(editor);
+        if (doc.isDirty) {
+          this.applyUncommittedDecoration(editor, line);
+        } else {
+          this.clearDecoration(editor);
+        }
         return;
       }
 
@@ -272,12 +279,11 @@ export class GitBlameController implements vscode.Disposable {
     config: RepoGitConfig,
   ): void {
     const initials = getInitials(entry.authorName);
-    const relDate = formatRelativeDate(entry.committedAt);
     const isUncommitted = entry.commitHash.startsWith(UNCOMMITTED_HASH_PREFIX);
-    const truncMsg = isUncommitted
-      ? 'Uncommitted Changes'
-      : truncate(entry.commitMessage, 50);
-    const contentText = `[${initials}]  ${entry.authorName}  \u2022  ${relDate}  \u2022  ${truncMsg}`;
+
+    const contentText = isUncommitted
+      ? '\u270E  Uncommitted Changes'
+      : `${truncate(entry.commitMessage, 50)}  \u2022  ${initials}  \u2022  ${formatRelativeDate(entry.committedAt)}`;
 
     const lineLength = editor.document.lineAt(line).text.length;
     const range = new vscode.Range(line, lineLength, line, lineLength);
@@ -289,6 +295,14 @@ export class GitBlameController implements vscode.Disposable {
         range,
         renderOptions: { after: { contentText } },
       },
+    ]);
+  }
+
+  private applyUncommittedDecoration(editor: vscode.TextEditor, line: number): void {
+    const lineLength = editor.document.lineAt(line).text.length;
+    const range = new vscode.Range(line, lineLength, line, lineLength);
+    editor.setDecorations(BLAME_DECORATION, [
+      { range, renderOptions: { after: { contentText: '\u270E  Uncommitted Changes' } } },
     ]);
   }
 
@@ -309,7 +323,6 @@ export class GitBlameController implements vscode.Disposable {
     }
 
     const { entry, config } = active;
-    const absDate = formatAbsoluteDate(entry.committedAt);
     const stats = this.statsCache.get(entry.commitHash);
     const isUncommitted = entry.commitHash.startsWith(UNCOMMITTED_HASH_PREFIX);
 
@@ -319,19 +332,25 @@ export class GitBlameController implements vscode.Disposable {
       ? '$(edit) **Uncommitted Changes**'
       : `\`${entry.commitHash.slice(0, 7)}\` **${entry.commitMessage}**`;
 
+    // Only show date line for committed entries — author-time for uncommitted
+    // lines is meaningless (git echoes the file's mtime at blame time).
+    const dateLine = isUncommitted
+      ? ''
+      : `$(calendar) *${formatAbsoluteDate(entry.committedAt)}*`;
+
     const md = new vscode.MarkdownString(
       [
         headerLine,
         '',
         `$(account) **${entry.authorName}**`,
         '',
-        `$(calendar) *${absDate}*`,
-        '',
+        dateLine,
+        dateLine ? '' : undefined,
         statsLine,
         '',
         linksLine,
-      ].join('\n'),
-    /* supportThemeIcons */ true,
+      ].filter((l) => l !== undefined).join('\n'),
+      /* supportThemeIcons */ true,
     );
     md.supportHtml = true;
     md.isTrusted = true;

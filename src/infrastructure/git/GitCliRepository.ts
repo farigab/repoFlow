@@ -36,7 +36,7 @@ import {
 const execFileAsync = promisify(execFile);
 
 function escapePathSpec(filePath: string): string {
-  return filePath.replace(/\\/g, '/');
+  return filePath.replaceAll('\\', '/');
 }
 
 function parseStashList(raw: string): StashEntry[] {
@@ -61,7 +61,7 @@ function parseStashList(raw: string): StashEntry[] {
     const date = parts[2].trim();
 
     const indexMatch = /stash@\{(\d+)\}/.exec(ref);
-    const index = indexMatch ? parseInt(indexMatch[1], 10) : 0;
+    const index = indexMatch ? Number.parseInt(indexMatch[1], 10) : 0;
 
     const branchMatch = /^(?:WIP on|On) ([^:]+):/.exec(subject);
     const branch = branchMatch ? branchMatch[1].trim() : '';
@@ -594,9 +594,19 @@ export class GitCliRepository implements GitRepository {
     this.graphCache.clear();
   }
 
-  // openFile is handled entirely on the extension host side via vscode.workspace.openTextDocument.
-  // This stub satisfies the interface; actual implementation is in GitGraphViewProvider.
-  public async openFile(_repoRoot: string, _filePath: string): Promise<void> { }
+  // openFile is primarily handled on the extension host side via GitGraphViewProvider.
+  // Provide a best-effort fallback here so the method is not an empty stub and
+  // callers that invoke the port directly still get a sensible behavior.
+  public async openFile(repoRoot: string, filePath: string): Promise<void> {
+    try {
+      const fullPath = path.join(repoRoot, filePath);
+      const doc = await vscode.workspace.openTextDocument(fullPath);
+      await vscode.window.showTextDocument(doc, { preserveFocus: false, preview: false });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.output.appendLine(`[openFile] Failed to open ${repoRoot}/${filePath}: ${msg}`);
+    }
+  }
 
   private hasDirtyChanges(localChanges: WorkingTreeStatus): boolean {
     return localChanges.staged.length + localChanges.unstaged.length + localChanges.conflicted.length > 0;

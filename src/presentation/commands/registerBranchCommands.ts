@@ -17,11 +17,27 @@ async function deleteRemoteBranchFromItem(
     void vscode.window.showErrorMessage(`RepoFlow: Invalid remote branch name '${fullBranchName}'.`);
     return;
   }
-  await repository.deleteRemoteBranch(
-    repoRoot,
-    fullBranchName.slice(0, slashIdx),
-    fullBranchName.slice(slashIdx + 1)
-  );
+  const remote = fullBranchName.slice(0, slashIdx);
+  const name = fullBranchName.slice(slashIdx + 1);
+
+  try {
+    await repository.deleteRemoteBranch(repoRoot, remote, name);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    // If the remote ref is already gone, attempt to prune local tracking refs so the UI updates.
+    if (msg.includes('remote ref does not exist') || msg.includes('unable to delete') || msg.includes('failed to push some refs')) {
+      try {
+        await repository.fetch(repoRoot);
+        void vscode.window.showInformationMessage(`Remote branch '${fullBranchName}' not found; pruned local tracking refs.`);
+      } catch (fetchErr) {
+        const fetchMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+        void vscode.window.showWarningMessage(`RepoFlow: Failed to prune remote refs: ${fetchMsg}`);
+      }
+      return;
+    }
+
+    void vscode.window.showErrorMessage(`RepoFlow: ${msg}`);
+  }
 }
 
 async function deleteLocalBranchWithConfirm(
