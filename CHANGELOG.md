@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1 - 2026-04-20
+
+- **Refactor:** Cleaned up `provideHover` in `GitBlameController`: hoisted shared `lineLength`/`range` computation, removed dead `dateLine` ternary (guaranteed non-empty after the uncommitted early-return), and fixed a double blank line that appeared in the tooltip when a commit had no author email.
+
 ## 1.2.0 — 2026-04-20
 
 - **Changed:** Show author email in Commit Details (webview). The Commit Details panel now displays the author's email beneath their name.
