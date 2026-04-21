@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.0 — 2026-04-20
+
+- **Changed:** Show author email in Commit Details (webview). The Commit Details panel now displays the author's email beneath their name.
+
 ## 1.1.9 — 2026-04-20
 
 - **Changed:** Refactor `buildRepoSummary` to simplify summary construction and reduce cognitive complexity.

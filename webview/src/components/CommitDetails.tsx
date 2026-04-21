@@ -147,7 +147,12 @@ export function CommitDetails({ detail, onOpenDiff, onClose }: CommitDetailsProp
                     </div>
                     <div>
                         <span>Author</span>
-                        <strong>{detail.authorName}</strong>
+                        <strong>
+                            {detail.authorName}
+                            <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--muted)', fontWeight: 400 }}>
+                                {detail.authorEmail}
+                            </span>
+                        </strong>
                     </div>
                     <div>
                         <span>Date</span>
