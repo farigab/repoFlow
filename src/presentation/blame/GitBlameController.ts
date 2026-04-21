@@ -332,31 +332,36 @@ export class GitBlameController implements vscode.Disposable {
       ? '$(edit) **Uncommitted Changes**'
       : `\`${entry.commitHash.slice(0, 7)}\` **${entry.commitMessage}**`;
 
-    // Only show date line for committed entries — author-time for uncommitted
-    // lines is meaningless (git echoes the file's mtime at blame time).
-    const dateLine = isUncommitted
-      ? ''
-      : `$(calendar) *${formatAbsoluteDate(entry.committedAt)}*`;
-
-    const md = new vscode.MarkdownString(
-      [
-        headerLine,
-        '',
-        `$(account) **${entry.authorName}**`,
-        '',
-        dateLine,
-        dateLine ? '' : undefined,
-        statsLine,
-        '',
-        linksLine,
-      ].filter((l) => l !== undefined).join('\n'),
-      /* supportThemeIcons */ true,
-    );
-    md.supportHtml = true;
-    md.isTrusted = true;
-
     const lineLength = document.lineAt(position.line).text.length;
     const range = new vscode.Range(position.line, 0, position.line, lineLength);
+
+    // If the line is uncommitted, show only a simple hover message.
+    // Author-time for uncommitted lines is meaningless (git echoes the file's
+    // mtime at blame time), so we skip the date / stats / links sections.
+    if (isUncommitted) {
+      const md = new vscode.MarkdownString(headerLine, /* supportThemeIcons */ true);
+      md.supportHtml = true;
+      md.isTrusted = true;
+      return new vscode.Hover(md, range);
+    }
+
+    const dateLine = `$(calendar) *${formatAbsoluteDate(entry.committedAt)}*`;
+
+    const lines: string[] = [
+      headerLine,
+      '',
+      `$(account) **${entry.authorName}**`,
+    ];
+
+    if (entry.authorEmail) {
+      lines.push('', `$(mail) *${entry.authorEmail}*`);
+    }
+
+    lines.push('', dateLine, '', statsLine, '', linksLine);
+
+    const md = new vscode.MarkdownString(lines.join('\n'), /* supportThemeIcons */ true);
+    md.supportHtml = true;
+    md.isTrusted = true;
     return new vscode.Hover(md, range);
   }
 
