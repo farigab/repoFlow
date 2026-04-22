@@ -310,8 +310,13 @@ export class GitCliRepository implements GitRepository {
     this.graphCache.clear();
   }
 
-  public async commit(repoRoot: string, message: string): Promise<void> {
-    await this.runGit(repoRoot, ['commit', '-m', message]);
+  public async commit(repoRoot: string, message: string, amend = false): Promise<void> {
+    const args: string[] = ['commit'];
+    if (amend) {
+      args.push('--amend');
+    }
+    args.push('-m', message);
+    await this.runGit(repoRoot, args);
     this.graphCache.clear();
   }
 

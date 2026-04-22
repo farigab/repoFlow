@@ -193,7 +193,19 @@ export function registerRepoCommands(
         ignoreFocusOut: true
       });
       if (!message) return;
-      await repository.commit(repoRoot, message.trim());
+
+      const choice = await vscode.window.showQuickPick([
+        { label: 'Commit', description: 'Create a new commit' },
+        { label: 'Amend Last Commit', description: 'Amend the most recent commit' }
+      ], {
+        title: 'Commit or Amend?',
+        placeHolder: 'Choose action',
+        ignoreFocusOut: true
+      });
+      if (!choice) return;
+
+      const amend = choice.label === 'Amend Last Commit';
+      await repository.commit(repoRoot, message.trim(), amend);
       await graphViewProvider.refresh();
     }),
     // Internal command — invoked from blame hover command URI

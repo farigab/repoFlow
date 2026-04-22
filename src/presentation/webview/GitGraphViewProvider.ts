@@ -436,8 +436,19 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
       validateInput: (value) => (value.trim() ? undefined : 'Please enter a commit message.')
     });
     if (!messageText) return;
+    const choice = await vscode.window.showQuickPick([
+      { label: 'Commit', description: 'Create a new commit' },
+      { label: 'Amend Last Commit', description: 'Amend the most recent commit' }
+    ], {
+      title: 'Commit or Amend?',
+      placeHolder: 'Choose action',
+      ignoreFocusOut: true
+    });
+    if (!choice) return;
+
+    const amend = choice.label === 'Amend Last Commit';
     await this.executeRepositoryAction('Committing...', async () => {
-      await this.repository.commit(payload.repoRoot, messageText.trim());
+      await this.repository.commit(payload.repoRoot, messageText.trim(), amend);
     });
   }
 
