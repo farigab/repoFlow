@@ -310,18 +310,48 @@ export class GitCliRepository implements GitRepository {
     this.graphCache.clear();
   }
 
-  public async commit(repoRoot: string, message: string): Promise<void> {
-    await this.runGit(repoRoot, ['commit', '-m', message]);
+  public async commit(repoRoot: string, message: string, amend = false): Promise<void> {
+    const args: string[] = ['commit'];
+    if (amend) {
+      args.push('--amend');
+    }
+    args.push('-m', message);
+    await this.runGit(repoRoot, args);
     this.graphCache.clear();
   }
 
   public async createBranch(repoRoot: string, name: string, fromRef?: string): Promise<void> {
-    const args = ['checkout', '-b', name];
     if (fromRef) {
-      args.push(fromRef);
+      // Determine whether the requested fromRef exists as a remote branch
+      // (refs/remotes/...). Relying on the presence of '/' is incorrect
+      // because local branch names commonly contain slashes.
+      let isRemoteRef = false;
+      try {
+        await this.runGit(repoRoot, ['show-ref', '--verify', '--quiet', `refs/remotes/${fromRef}`]);
+        isRemoteRef = true;
+      } catch {
+        isRemoteRef = false;
+      }
+
+      try {
+        if (isRemoteRef) {
+          await this.runGit(repoRoot, ['checkout', '--track', '-b', name, fromRef]);
+        } else {
+          await this.runGit(repoRoot, ['checkout', '-b', name, fromRef]);
+        }
+      } catch {
+        // If creation fails (e.g. branch already exists) attempt to
+        // checkout the existing branch so the user ends up on it.
+        try {
+          await this.runGit(repoRoot, ['checkout', name]);
+        } catch {
+          // swallow — best-effort
+        }
+      }
+    } else {
+      await this.runGit(repoRoot, ['checkout', '-b', name]);
     }
 
-    await this.runGit(repoRoot, args);
     this.graphCache.clear();
   }
 
