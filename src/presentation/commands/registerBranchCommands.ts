@@ -131,7 +131,24 @@ export function registerBranchCommands(
     vscode.commands.registerCommand('repoFlow.branches.merge', async (item: BranchTreeItem) => {
       if (!item?.branch) return;
       const repoRoot = await repository.resolveRepositoryRoot();
-      await repository.merge(repoRoot, item.branch.shortName);
+
+      const short = item.branch.shortName?.trim();
+      if (!short) {
+        void vscode.window.showErrorMessage('RepoFlow: Invalid branch name.');
+        return;
+      }
+
+      // Use full ref names to avoid ambiguity and accidental pathspecs.
+      const sourceRef = item.branch.remote ? `refs/remotes/${short}` : `refs/heads/${short}`;
+
+      try {
+        await repository.merge(repoRoot, sourceRef);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        void vscode.window.showErrorMessage(`RepoFlow: ${msg}`);
+        return;
+      }
+
       branchTreeProvider.refresh();
       await graphViewProvider.refresh();
     })

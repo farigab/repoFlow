@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.3 - 2026-04-23
+
+- **Fixed:** Prevent passing a stray pathspec `.` to `git merge` when merging from the Branches view. The extension now sanitizes branch names and rejects obviously invalid inputs before invoking Git, avoiding errors like `git -C <repo> merge teste .`.
+- **Changed:** `repoFlow.branches.merge` now passes explicit ref names (`refs/heads/<name>` or `refs/remotes/<remote>/<name>`) to the repository layer to avoid ambiguity between branch names and pathspecs.
+- **Changed:** `GitCliRepository.merge` trims and sanitizes the supplied source ref and throws a friendly error for invalid values.
+
+## Included commits - 1.2.3
+
+- [fcf7720](https://github.com/farigab/repoFlow/commit/fcf7720) — fix: sanitize merge inputs and avoid passing pathspec '.' to `git merge`
+
 ## 1.2.2 - 2026-04-22
 
 - **Fixed:** Creating a branch from a remote ref (e.g. `origin/name`) could leave HEAD on the previous branch causing subsequent commits to land on the wrong branch (e.g. `develop`). `createBranch` now ensures the new branch is checked out and sets upstream when appropriate.
@@ -7,13 +17,26 @@
 - **Added:** `Amend Last Commit` support in the commit flows. The `RepoFlow: Commit Changes` command and the commit prompt in the graph webview now offer an "Amend Last Commit" action; when chosen the extension runs `git commit --amend -m "<message>"` so users can update the latest commit from the UI.
 - **Changed:** The `GitStagingPort.commit` signature now accepts an optional `amend?: boolean` and the `GitCliRepository` implementation supports the `--amend` flag.
 
+## Included commits - 1.2.2
+
+- [59088e1](https://github.com/farigab/repoFlow/commit/59088e1) — feat: add support for amending commits and prompt user for commit action
+- [abaeb66](https://github.com/farigab/repoFlow/commit/abaeb66) — feat: enhance branch creation logic to handle remote branches and existing branches
+
 ## 1.2.1 - 2026-04-20
 
 - **Refactor:** Cleaned up `provideHover` in `GitBlameController`: hoisted shared `lineLength`/`range` computation, removed dead `dateLine` ternary (guaranteed non-empty after the uncommitted early-return), and fixed a double blank line that appeared in the tooltip when a commit had no author email.
 
+## Included commits - 1.2.1
+
+- [3cc75e3](https://github.com/farigab/repoFlow/commit/3cc75e3) — refactor: improve hover message handling for uncommitted changes in GitBlameController
+
 ## 1.2.0 — 2026-04-20
 
 - **Changed:** Show author email in Commit Details (webview). The Commit Details panel now displays the author's email beneath their name.
+
+## Included commits - 1.2.0
+
+- [29629bf](https://github.com/farigab/repoFlow/commit/29629bf) — feat: display author email in Commit Details panel
 
 ## 1.1.9 — 2026-04-20
 

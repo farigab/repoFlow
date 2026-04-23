@@ -371,7 +371,20 @@ export class GitCliRepository implements GitRepository {
   }
 
   public async merge(repoRoot: string, sourceBranch: string): Promise<void> {
-    await this.runGit(repoRoot, ['merge', sourceBranch]);
+    const source = sourceBranch?.trim();
+    if (!source) {
+      throw new Error('Invalid branch specified for merge.');
+    }
+
+    // Remove a stray trailing dot separated by whitespace (e.g. "teste .")
+    // but keep legitimate dots inside branch names (e.g. "v1.0").
+    const sanitized = source.replace(/\s+\.$/, '');
+
+    if (sanitized === '' || sanitized === '.') {
+      throw new Error('Invalid branch specified for merge.');
+    }
+
+    await this.runGit(repoRoot, ['merge', sanitized]);
     this.graphCache.clear();
   }
 
