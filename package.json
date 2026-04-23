@@ -2,7 +2,7 @@
   "name": "repoflow",
   "displayName": "RepoFlow — Git Tools & Graph",
   "description": "Interactive Git graph, commit history, diff, stash, blame, worktree manager and pull request manager for Visual Studio Code.",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "publisher": "farigab",
   "license": "MIT",
   "icon": "media/icon.png",
