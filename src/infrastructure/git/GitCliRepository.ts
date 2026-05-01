@@ -199,6 +199,10 @@ export class GitCliRepository implements GitRepository {
     private readonly openDiffHandler: (request: DiffRequest) => Promise<void>
   ) { }
 
+  public clearTransientCaches(): void {
+    this.graphCache.clear();
+  }
+
   public async resolveRepositoryRoot(preferredPath?: string): Promise<string> {
     const candidates = new Set<string>();
 
