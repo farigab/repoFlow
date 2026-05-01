@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed:** Git blame hover content now escapes commit metadata before rendering Markdown and only trusts the `repoFlow.revealCommit` command link, preventing untrusted commit messages, authors, or emails from injecting unexpected Markdown commands.
+- **Fixed:** Searching the graph for a hash-like value now resolves the commit directly instead of only filtering the currently loaded page, so older commits outside the initial limit can still be found.
+- **Fixed:** Checking out a remote branch from the Branches view now preserves the selected remote ref and avoids switching to a same-named local branch that tracks a different remote.
+
 ## 1.2.3 - 2026-04-23
 
 - **Fixed:** Prevent passing a stray pathspec `.` to `git merge` when merging from the Branches view. The extension now sanitizes branch names and rejects obviously invalid inputs before invoking Git, avoiding errors like `git -C <repo> merge teste .`.
