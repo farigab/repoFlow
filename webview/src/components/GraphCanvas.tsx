@@ -111,6 +111,20 @@ function RepoStatusBanner({ status, onAction, onOpenConflictFile }: {
     onAction: (action: 'continue' | 'skip' | 'abort' | 'pull' | 'push' | 'fetch') => void;
     onOpenConflictFile: (filePath: string) => void;
 }) {
+    const [, setClockTick] = useState(0);
+
+    useEffect(() => {
+        if (!status.lastFetchAt) {
+            return;
+        }
+
+        const intervalId = window.setInterval(() => {
+            setClockTick((current) => current + 1);
+        }, 30_000);
+
+        return () => window.clearInterval(intervalId);
+    }, [status.lastFetchAt]);
+
     const hasSpecialState = Boolean(status.specialState);
     const hasConflicts = status.conflicted.length > 0;
 
