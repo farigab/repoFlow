@@ -16,6 +16,8 @@ interface GraphCanvasProps {
     onOpenDeleteBranches: () => void;
     onOpenStashModal: () => void;
     onOpenWorktreeModal: () => void;
+    onOpenBranchCompareModal: () => void;
+    onOpenUndoModal: () => void;
     onBannerAction: (action: 'continue' | 'skip' | 'abort' | 'pull' | 'push' | 'fetch') => void;
     onOpenConflictFile: (filePath: string) => void;
 }
@@ -249,7 +251,7 @@ function highlightText(text: string, pattern: RegExp | null): ReactNode {
     return <>{parts}</>;
 }
 
-export function GraphCanvas({ snapshot, selectedCommitHash, selectedUncommitted, onSelectCommit, onSelectUncommitted, onOpenContextMenu, onLoadMore, onOpenSettings, onOpenPR, onOpenDeleteBranches, onOpenStashModal, onOpenWorktreeModal, onBannerAction, onOpenConflictFile }: GraphCanvasProps) {
+export function GraphCanvas({ snapshot, selectedCommitHash, selectedUncommitted, onSelectCommit, onSelectUncommitted, onOpenContextMenu, onLoadMore, onOpenSettings, onOpenPR, onOpenDeleteBranches, onOpenStashModal, onOpenWorktreeModal, onOpenBranchCompareModal, onOpenUndoModal, onBannerAction, onOpenConflictFile }: GraphCanvasProps) {
     const rowHeight = 46;
     const laneGap = 20;
     const graphWidth = Math.max(110, 52 + (snapshot.maxLane + 1) * laneGap);
@@ -275,7 +277,9 @@ export function GraphCanvas({ snapshot, selectedCommitHash, selectedUncommitted,
     const [wholeWord, setWholeWord] = useState(false);
     const [useRegex, setUseRegex] = useState(false);
     const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+    const [moreActionsOpen, setMoreActionsOpen] = useState(false);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const moreActionsRef = useRef<HTMLDivElement>(null);
 
     const handleNodeMouseEnter = useCallback((event: MouseEvent<SVGGElement>, commit: CommitSummary) => {
         if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
@@ -424,6 +428,18 @@ export function GraphCanvas({ snapshot, selectedCommitHash, selectedUncommitted,
         return () => window.removeEventListener('keydown', onKey);
     }, []);
 
+    useEffect(() => {
+        const onPointerDown = (event: globalThis.MouseEvent) => {
+            if (!moreActionsRef.current) return;
+            if (!moreActionsRef.current.contains(event.target as Node)) {
+                setMoreActionsOpen(false);
+            }
+        };
+
+        window.addEventListener('mousedown', onPointerDown);
+        return () => window.removeEventListener('mousedown', onPointerDown);
+    }, []);
+
     useEffect(() => { setCurrentMatchIndex(0); }, [searchQuery, caseSensitive, wholeWord, useRegex]);
 
     useEffect(() => {
@@ -486,21 +502,29 @@ export function GraphCanvas({ snapshot, selectedCommitHash, selectedUncommitted,
                     <button
                         type="button"
                         className="panel__settings-btn"
-                        onClick={onOpenDeleteBranches}
-                        title="Delete Local Branches"
-                        aria-label="Delete Local Branches"
+                        onClick={() => setMoreActionsOpen((open) => !open)}
+                        title="More Actions"
+                        aria-label="More Actions"
+                        aria-expanded={moreActionsOpen}
                     >
-                        <i className="codicon codicon-trash" aria-hidden="true" />
+                        <i className="codicon codicon-ellipsis" aria-hidden="true" />
                     </button>
-                    <button
-                        type="button"
-                        className="panel__settings-btn"
-                        onClick={onOpenSettings}
-                        title="Repository Settings"
-                        aria-label="Repository Settings"
-                    >
-                        <i className="codicon codicon-settings-gear" aria-hidden="true" />
-                    </button>
+                    {moreActionsOpen ? (
+                        <div className="panel-actions-menu" ref={moreActionsRef}>
+                            <button type="button" onClick={() => { setMoreActionsOpen(false); onOpenBranchCompareModal(); }}>
+                                <i className="codicon codicon-git-compare" aria-hidden="true" /> Compare Branches
+                            </button>
+                            <button type="button" onClick={() => { setMoreActionsOpen(false); onOpenUndoModal(); }}>
+                                <i className="codicon codicon-history" aria-hidden="true" /> Undo Last Operation
+                            </button>
+                            <button type="button" onClick={() => { setMoreActionsOpen(false); onOpenDeleteBranches(); }}>
+                                <i className="codicon codicon-trash" aria-hidden="true" /> Delete Local Branches
+                            </button>
+                            <button type="button" onClick={() => { setMoreActionsOpen(false); onOpenSettings(); }}>
+                                <i className="codicon codicon-settings-gear" aria-hidden="true" /> Repository Settings
+                            </button>
+                        </div>
+                    ) : null}
                 </div>
             </header>
 

@@ -75,6 +75,14 @@
         "icon": "$(check)"
       },
       {
+        "command": "repoFlow.compareBranches",
+        "title": "RepoFlow: Compare Branches"
+      },
+      {
+        "command": "repoFlow.undoLastOperation",
+        "title": "RepoFlow: Undo Last Operation"
+      },
+      {
         "command": "repoFlow.branches.refresh",
         "title": "Refresh Branches",
         "icon": "$(refresh)"
@@ -178,6 +186,12 @@
         },
         {
           "command": "repoFlow.commitChanges"
+        },
+        {
+          "command": "repoFlow.compareBranches"
+        },
+        {
+          "command": "repoFlow.undoLastOperation"
         },
         {
           "command": "repoFlow.branches.refresh",

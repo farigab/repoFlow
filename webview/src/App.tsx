@@ -1,5 +1,6 @@
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import type { CommitDetail, CommitFileChange, CommitSummary, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, WorkingTreeFile, WorktreeEntry } from '../../src/core/models';
+import type { BranchCompareResult, CommitDetail, CommitFileChange, CommitSummary, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, UndoEntry, WorkingTreeFile, WorktreeEntry } from '../../src/core/models';
+import { BranchCompareModal } from './components/BranchCompareModal';
 import type { ExtensionToWebviewMessage } from '../../src/shared/protocol';
 import { CommitDetails } from './components/CommitDetails';
 import { CreatePRModal } from './components/CreatePRModal';
@@ -8,6 +9,7 @@ import { GraphCanvas } from './components/GraphCanvas';
 import { LocalChangesPanel } from './components/LocalChangesPanel';
 import { RepoSettingsModal } from './components/RepoSettingsModal';
 import { StashModal } from './components/StashModal';
+import { UndoModal } from './components/UndoModal';
 import { WorktreeModal } from './components/WorktreeModal';
 import { useResizableSplit } from './hooks/useResizableSplit';
 import { vscode } from './vscode';
@@ -41,7 +43,11 @@ export function App() {
     const [stashOpen, setStashOpen] = useState(false);
     const [stashes, setStashes] = useState<StashEntry[]>([]);
     const [worktreeOpen, setWorktreeOpen] = useState(false);
+    const [branchCompareOpen, setBranchCompareOpen] = useState(false);
+    const [undoOpen, setUndoOpen] = useState(false);
     const [worktrees, setWorktrees] = useState<WorktreeEntry[]>([]);
+    const [compareResult, setCompareResult] = useState<BranchCompareResult | null>(null);
+    const [undoEntries, setUndoEntries] = useState<UndoEntry[]>([]);
     const [worktreeError, setWorktreeError] = useState<{ message: string; path?: string; canForce?: boolean } | null>(null);
     const [isUncommittedSelected, setIsUncommittedSelected] = useState(false);
     const [isCommitDetailsOpen, setIsCommitDetailsOpen] = useState(false);
@@ -99,6 +105,12 @@ export function App() {
                     return;
                 case 'worktreeError':
                     setWorktreeError(message.payload);
+                    return;
+                case 'branchCompareResult':
+                    setCompareResult(message.payload);
+                    return;
+                case 'undoEntries':
+                    setUndoEntries(message.payload.entries);
                     return;
                 default:
                     return;
@@ -300,6 +312,18 @@ export function App() {
         setWorktreeOpen(true);
     }, [snapshot]);
 
+    const handleOpenBranchCompareModal = useCallback(() => {
+        setCompareResult(null);
+        setBranchCompareOpen(true);
+    }, []);
+
+    const handleOpenUndoModal = useCallback(() => {
+        if (snapshot) {
+            vscode.postMessage({ type: 'listUndoEntries', payload: { repoRoot: snapshot.repoRoot } });
+        }
+        setUndoOpen(true);
+    }, [snapshot]);
+
     if (!snapshot) {
         return (
             <main className="shell shell--loading">
@@ -335,6 +359,8 @@ export function App() {
                     onOpenDeleteBranches={() => setDeleteBranchesOpen(true)}
                     onOpenStashModal={handleOpenStashModal}
                     onOpenWorktreeModal={handleOpenWorktreeModal}
+                    onOpenBranchCompareModal={handleOpenBranchCompareModal}
+                    onOpenUndoModal={handleOpenUndoModal}
                     onBannerAction={handleBannerAction}
                     onOpenConflictFile={handleOpenConflictFile}
                 />
@@ -439,6 +465,20 @@ export function App() {
                     busy={busy.value}
                     worktreeError={worktreeError}
                     onClose={() => { setWorktreeOpen(false); setWorktreeError(null); }}
+                />
+            ) : null}
+            {branchCompareOpen && snapshot ? (
+                <BranchCompareModal
+                    snapshot={snapshot}
+                    result={compareResult}
+                    onClose={() => setBranchCompareOpen(false)}
+                />
+            ) : null}
+            {undoOpen && snapshot ? (
+                <UndoModal
+                    snapshot={snapshot}
+                    entries={undoEntries}
+                    onClose={() => setUndoOpen(false)}
                 />
             ) : null}
         </main>

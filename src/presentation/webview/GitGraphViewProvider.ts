@@ -247,7 +247,10 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
       pullRepo: async (p) => this.handlePullRepo(p),
       pushRepo: async (p) => this.handlePushRepo(p),
       fetchRepo: async (p) => this.handleFetchRepo(p),
-      openFile: async (p) => this.handleOpenFile(p)
+      openFile: async (p) => this.handleOpenFile(p),
+      compareBranches: async (p) => this.handleCompareBranches(p),
+      listUndoEntries: async (p) => this.handleListUndoEntries(p),
+      undoTo: async (p) => this.handleUndoTo(p)
     };
 
     const handler = handlers[message.type];
@@ -701,6 +704,29 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     const fullPath = vscode.Uri.file(nodePath.join(payload.repoRoot, payload.filePath));
     const doc = await vscode.workspace.openTextDocument(fullPath);
     await vscode.window.showTextDocument(doc, { preserveFocus: false, preview: false });
+  }
+
+  private async handleCompareBranches(payload: PayloadFor<'compareBranches'>): Promise<void> {
+    const result = await this.repository.compareBranches(payload.repoRoot, payload.baseRef, payload.targetRef);
+    await this.postMessage({ type: 'branchCompareResult', payload: result });
+  }
+
+  private async handleListUndoEntries(payload: PayloadFor<'listUndoEntries'>): Promise<void> {
+    const entries = await this.repository.listUndoEntries(payload.repoRoot);
+    await this.postMessage({ type: 'undoEntries', payload: { entries } });
+  }
+
+  private async handleUndoTo(payload: PayloadFor<'undoTo'>): Promise<void> {
+    const confirmed = await vscode.window.showWarningMessage(
+      `Undo to ${payload.ref}? This performs a hard reset and can discard uncommitted changes.`,
+      { modal: true },
+      'Undo'
+    );
+    if (confirmed !== 'Undo') return;
+
+    await this.executeRepositoryAction('Undoing last operation...', async () => {
+      await this.repository.undoTo(payload.repoRoot, payload.ref);
+    });
   }
 
   // Remote/PR helpers moved to GitGraphUtils.ts

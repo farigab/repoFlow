@@ -7,6 +7,9 @@ import { buildGraphRows } from '../../application/graph/buildGraphRows';
 import type {
   BlameEntry,
   BranchSummary,
+  BranchCompareCommit,
+  BranchCompareFile,
+  BranchCompareResult,
   CommitDetail,
   CommitStats,
   DiffRequest,
@@ -16,6 +19,7 @@ import type {
   RepoSpecialState,
   StashEntry,
   StashFile,
+  UndoEntry,
   WorkingTreeStatus,
   WorktreeEntry
 } from '../../core/models';
@@ -102,6 +106,89 @@ function parseStashFiles(raw: string): StashFile[] {
   }
 
   return files;
+}
+
+function parseCompareCommits(raw: string): BranchCompareCommit[] {
+  if (!raw.trim()) {
+    return [];
+  }
+
+  return raw
+    .split('\x1e')
+    .map((record) => record.trim())
+    .filter(Boolean)
+    .map((record) => {
+      const [hash = '', authorName = '', authoredAt = '', subject = ''] = record.split('\x1f');
+      return {
+        hash,
+        shortHash: hash.slice(0, 8),
+        authorName,
+        authoredAt,
+        subject
+      };
+    })
+    .filter((commit) => commit.hash.length > 0);
+}
+
+function parseNameStatusAndNumstat(nameStatusRaw: string, numstatRaw: string): BranchCompareFile[] {
+  const files: BranchCompareFile[] = [];
+  const numstatByPath = new Map<string, { additions: number; deletions: number }>();
+
+  for (const line of numstatRaw.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    const [rawAdditions, rawDeletions, pathA, pathB] = trimmed.split('\t');
+    const additions = rawAdditions === '-' ? 0 : Number.parseInt(rawAdditions ?? '0', 10);
+    const deletions = rawDeletions === '-' ? 0 : Number.parseInt(rawDeletions ?? '0', 10);
+    const key = pathB ?? pathA;
+    if (key) {
+      numstatByPath.set(key, { additions: Number.isFinite(additions) ? additions : 0, deletions: Number.isFinite(deletions) ? deletions : 0 });
+    }
+  }
+
+  for (const line of nameStatusRaw.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    const [rawStatus, pathA, pathB] = trimmed.split('\t');
+    if (!rawStatus || !pathA) {
+      continue;
+    }
+
+    const status = rawStatus[0] ?? rawStatus;
+    const finalPath = pathB ?? pathA;
+    const stats = numstatByPath.get(finalPath) ?? { additions: 0, deletions: 0 };
+    files.push({
+      status,
+      path: finalPath,
+      originalPath: pathB ? pathA : undefined,
+      additions: stats.additions,
+      deletions: stats.deletions
+    });
+  }
+
+  return files;
+}
+
+function parseUndoEntries(raw: string): UndoEntry[] {
+  if (!raw.trim()) {
+    return [];
+  }
+
+  return raw
+    .split('\x1e')
+    .map((record) => record.trim())
+    .filter(Boolean)
+    .map((record) => {
+      const [hash = '', ref = '', date = '', message = ''] = record.split('\x1f');
+      return { hash, shortHash: hash.slice(0, 8), ref, date, message };
+    })
+    .filter((entry) => entry.hash.length > 0 && entry.ref.length > 0);
 }
 
 export class GitCliRepository implements GitRepository {
@@ -471,6 +558,45 @@ export class GitCliRepository implements GitRepository {
 
   public async dropCommit(repoRoot: string, commitHash: string): Promise<void> {
     await this.runGit(repoRoot, ['rebase', '--onto', `${commitHash}^`, commitHash]);
+    this.graphCache.clear();
+  }
+
+  public async compareBranches(repoRoot: string, baseRef: string, targetRef: string): Promise<BranchCompareResult> {
+    const [countsRaw, commitsAheadRaw, commitsBehindRaw, nameStatusRaw, numstatRaw] = await Promise.all([
+      this.runGit(repoRoot, ['rev-list', '--left-right', '--count', `${baseRef}...${targetRef}`]),
+      this.runGit(repoRoot, ['log', '--date=iso-strict', '--format=%H%x1f%an%x1f%ad%x1f%s%x1e', `${baseRef}..${targetRef}`]),
+      this.runGit(repoRoot, ['log', '--date=iso-strict', '--format=%H%x1f%an%x1f%ad%x1f%s%x1e', `${targetRef}..${baseRef}`]),
+      this.runGit(repoRoot, ['diff', '--name-status', '--find-renames', '--find-copies', `${baseRef}...${targetRef}`]),
+      this.runGit(repoRoot, ['diff', '--numstat', '--find-renames', '--find-copies', `${baseRef}...${targetRef}`])
+    ]);
+
+    const [behindRaw = '0', aheadRaw = '0'] = countsRaw.trim().split(/\s+/);
+    return {
+      baseRef,
+      targetRef,
+      ahead: Number.parseInt(aheadRaw, 10) || 0,
+      behind: Number.parseInt(behindRaw, 10) || 0,
+      commitsAhead: parseCompareCommits(commitsAheadRaw),
+      commitsBehind: parseCompareCommits(commitsBehindRaw),
+      files: parseNameStatusAndNumstat(nameStatusRaw, numstatRaw)
+    };
+  }
+
+  public async listUndoEntries(repoRoot: string): Promise<UndoEntry[]> {
+    const raw = await this.runGit(repoRoot, [
+      'reflog',
+      '-n',
+      '25',
+      '--date=iso-strict',
+      '--format=%H%x1f%gd%x1f%cd%x1f%gs%x1e'
+    ]).catch(() => '');
+
+    // Skip HEAD@{0}: it's the current position, not an undo target.
+    return parseUndoEntries(raw).filter((entry) => entry.ref !== 'HEAD@{0}');
+  }
+
+  public async undoTo(repoRoot: string, ref: string): Promise<void> {
+    await this.runGit(repoRoot, ['reset', '--hard', ref]);
     this.graphCache.clear();
   }
 

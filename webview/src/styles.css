@@ -1227,6 +1227,7 @@ mark.find-highlight {
   align-items: center;
   gap: 0.1rem;
   flex-shrink: 0;
+  position: relative;
 }
 
 .panel__settings-btn {
@@ -1252,6 +1253,36 @@ mark.find-highlight {
 
 .panel__settings-btn .codicon {
   font-size: 1rem;
+}
+
+.panel-actions-menu {
+  position: absolute;
+  top: calc(100% + 0.2rem);
+  right: 0;
+  z-index: 60;
+  min-width: 15rem;
+  display: grid;
+  gap: 2px;
+  padding: 0.35rem;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: var(--vscode-menu-background, var(--panel));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+}
+
+.panel-actions-menu button {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+  border-radius: 5px;
+  padding: 0.38rem 0.45rem;
+}
+
+.panel-actions-menu button:hover {
+  background: var(--vscode-menu-selectionBackground, rgba(0, 127, 212, 0.2));
 }
 
 /* ── Repository Settings Modal ──────────────────────────────── */
@@ -2762,4 +2793,35 @@ mark.find-highlight {
   color: var(--muted);
   opacity: 0.75;
   margin: 0;
+}
+
+.compare-summary {
+  margin: 0.35rem 0;
+  color: var(--muted-strong);
+}
+
+.compare-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.compare-list {
+  max-height: 14rem;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel) 60%, var(--bg) 40%);
+  font-size: 0.84rem;
+}
+
+.undo-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
 }
