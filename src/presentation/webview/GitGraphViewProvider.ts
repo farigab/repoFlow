@@ -503,7 +503,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
   private async handleStashChanges(payload: PayloadFor<'stashChanges'>): Promise<void> {
     const selectedPaths = payload.paths ? this.getSelectedPaths(payload.paths) ?? [] : undefined;
-    if (selectedPaths !== undefined && selectedPaths.length === 0) {
+    if (selectedPaths?.length === 0) {
       await this.postNotification('error', 'Select at least one file to stash.');
       return;
     }
@@ -530,7 +530,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
   private async handleApplyStash(payload: PayloadFor<'applyStash'>): Promise<void> {
     const selectedPaths = payload.paths ? this.getSelectedPaths(payload.paths) ?? [] : undefined;
-    if (selectedPaths !== undefined && selectedPaths.length === 0) {
+    if (selectedPaths?.length === 0) {
       await this.postNotification('error', 'Select at least one file to apply.');
       return;
     }
@@ -545,7 +545,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
   private async handlePopStash(payload: PayloadFor<'popStash'>): Promise<void> {
     const selectedPaths = payload.paths ? this.getSelectedPaths(payload.paths) ?? [] : undefined;
-    if (selectedPaths !== undefined && selectedPaths.length === 0) {
+    if (selectedPaths?.length === 0) {
       await this.postNotification('error', 'Select at least one file to pop.');
       return;
     }
