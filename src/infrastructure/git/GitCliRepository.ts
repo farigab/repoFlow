@@ -713,6 +713,44 @@ export class GitCliRepository implements GitRepository {
     this.graphCache.clear();
   }
 
+  public async previewStash(repoRoot: string, ref: string): Promise<void> {
+    const files = await this.listStashFiles(repoRoot, ref);
+    if (files.length === 0) {
+      throw new Error(`No files found in ${ref}.`);
+    }
+
+    const picks = [
+      { label: '$(files) Open all files', description: `${files.length} file(s)`, path: '__ALL__' },
+      ...files.map((file) => ({
+        label: file.path,
+        description: `${file.status}${file.originalPath ? ` from ${file.originalPath}` : ''}`,
+        path: file.path
+      }))
+    ];
+
+    const selection = await vscode.window.showQuickPick(picks, {
+      title: `Preview ${ref}`,
+      placeHolder: 'Choose a file to open in native diff'
+    });
+    if (!selection) {
+      return;
+    }
+
+    if (selection.path === '__ALL__') {
+      for (const file of files) {
+        await this.openStashFileDiff(repoRoot, ref, file);
+      }
+      return;
+    }
+
+    const selectedFile = files.find((file) => file.path === selection.path);
+    if (!selectedFile) {
+      return;
+    }
+
+    await this.openStashFileDiff(repoRoot, ref, selectedFile);
+  }
+
   public async getBlame(repoRoot: string, relativeFilePath: string): Promise<BlameEntry[]> {
     const raw = await this.runGit(repoRoot, [
       'blame',
@@ -905,6 +943,18 @@ export class GitCliRepository implements GitRepository {
         throw lastError;
       }
     }
+  }
+
+  private async openStashFileDiff(repoRoot: string, ref: string, file: StashFile): Promise<void> {
+    const leftPath = file.originalPath ?? file.path;
+    const parentRef = `${ref}^1`;
+    await this.openDiffHandler({
+      repoRoot,
+      commitHash: ref,
+      parentHash: parentRef,
+      filePath: file.path,
+      originalPath: leftPath
+    });
   }
 
   private normalizePathList(paths?: string[]): string[] {

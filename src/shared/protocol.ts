@@ -28,6 +28,7 @@ export type WebviewToExtensionMessage =
   | { type: 'openPullRequest'; payload: { repoRoot: string; sourceBranch: string; targetBranch: string; title: string; description: string } }
   | { type: 'listStashes'; payload: { repoRoot: string } }
   | { type: 'stashChanges'; payload: { repoRoot: string; message?: string; includeUntracked: boolean; paths?: string[] } }
+  | { type: 'previewStash'; payload: { repoRoot: string; ref: string } }
   | { type: 'applyStash'; payload: { repoRoot: string; ref: string; paths?: string[] } }
   | { type: 'popStash'; payload: { repoRoot: string; ref: string; paths?: string[] } }
   | { type: 'dropStash'; payload: { repoRoot: string; ref: string } }

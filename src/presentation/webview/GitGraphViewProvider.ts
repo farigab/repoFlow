@@ -228,6 +228,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
       openPullRequest: async (p) => this.handleOpenPullRequest(p),
       listStashes: async (p) => this.handleListStashes(p),
       stashChanges: async (p) => this.handleStashChanges(p),
+      previewStash: async (p) => this.handlePreviewStash(p),
       applyStash: async (p) => this.handleApplyStash(p),
       popStash: async (p) => this.handlePopStash(p),
       dropStash: async (p) => this.handleDropStash(p),
@@ -513,6 +514,18 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     if (!ok) return;
     const entries = await this.repository.listStashes(payload.repoRoot);
     await this.postMessage({ type: 'stashList', payload: { entries } });
+  }
+
+  private async handlePreviewStash(payload: PayloadFor<'previewStash'>): Promise<void> {
+    try {
+      await this.withBusy('Opening stash preview...', async () => {
+        await this.repository.previewStash(payload.repoRoot, payload.ref);
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.output.appendLine(`[ui-error] ${message}`);
+      await this.postNotification('error', message);
+    }
   }
 
   private async handleApplyStash(payload: PayloadFor<'applyStash'>): Promise<void> {

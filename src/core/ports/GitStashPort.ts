@@ -3,4 +3,5 @@ export interface GitStashPort {
   applyStash(repoRoot: string, ref: string, paths?: string[]): Promise<void>;
   popStash(repoRoot: string, ref: string, paths?: string[]): Promise<void>;
   dropStash(repoRoot: string, ref: string): Promise<void>;
+  previewStash(repoRoot: string, ref: string): Promise<void>;
 }
