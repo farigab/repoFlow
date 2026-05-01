@@ -14,6 +14,7 @@
 - **Added:** Branch comparison flow with ahead/behind counts, commit lists on both sides, and changed-file summary (including additions/deletions) for selected base/target branches.
 - **Added:** "Undo Last Operation" flow based on reflog, allowing a reset to previous `HEAD@{n}` positions from both command and webview flows.
 - **Added:** Stash preview now opens native VS Code side-by-side diffs per file (with file picker and "open all" option), so stash changes can be reviewed before `apply`, `pop`, or `drop`.
+- **Added:** Automatic background fetch while the VS Code window is focused (`repoFlow.autoFetch.enabled` / `repoFlow.autoFetch.intervalSeconds`), so RepoFlow detects remote-only updates (including GitHub web merges) without manual fetch.
 - **Changed:** Graph header actions were reorganized to reduce visual clutter by grouping secondary actions under a "More Actions" menu.
 
 ## Included commits - 1.2.4

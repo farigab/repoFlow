@@ -531,8 +531,12 @@ export class GitCliRepository implements GitRepository {
     this.graphCache.clear();
   }
 
-  public async fetch(repoRoot: string): Promise<void> {
-    await this.runGit(repoRoot, ['fetch', '--all', '--prune']);
+  public async fetch(repoRoot: string, options?: { quiet?: boolean }): Promise<void> {
+    const args = ['fetch', '--all', '--prune'];
+    if (options?.quiet) {
+      args.push('--quiet');
+    }
+    await this.runGit(repoRoot, args, { logCommand: options?.quiet !== true });
     this.graphCache.clear();
   }
 
@@ -1023,8 +1027,10 @@ export class GitCliRepository implements GitRepository {
     await this.runGit(repoRoot, ['checkout', localName]);
   }
 
-  private async runGit(repoRoot: string, args: string[], options?: { logErrors?: boolean }): Promise<string> {
-    this.output.appendLine(`git -C ${repoRoot} ${args.join(' ')}`);
+  private async runGit(repoRoot: string, args: string[], options?: { logErrors?: boolean; logCommand?: boolean }): Promise<string> {
+    if (options?.logCommand !== false) {
+      this.output.appendLine(`git -C ${repoRoot} ${args.join(' ')}`);
+    }
 
     try {
       const result = await execFileAsync('git', ['-C', repoRoot, ...args], {
