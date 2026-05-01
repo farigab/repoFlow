@@ -20,8 +20,6 @@ function formatFullDate(input: string): string {
     return fullDateFormatter.format(new Date(input));
 }
 
-// ── File-tree helpers ──────────────────────────────────────────────────────────
-
 interface DirNode {
     children: Map<string, DirNode>;
     files: CommitFileChange[];
@@ -65,6 +63,35 @@ function compressFolder(labelParts: string[], node: DirNode): { labelParts: stri
     return { labelParts: currentLabelParts, node: currentNode };
 }
 
+function renderCommitFile(
+    file: CommitFileChange,
+    detail: CommitDetail,
+    onOpenDiff: (file: CommitFileChange, detail: CommitDetail) => void
+) {
+    const filename = file.path.split('/').at(-1) ?? file.path;
+    const origFilename = file.originalPath ? (file.originalPath.split('/').at(-1) ?? file.originalPath) : null;
+
+    return (
+        <button
+            key={`${detail.hash}-${file.path}`}
+            type="button"
+            className="file-card"
+            onClick={() => onOpenDiff(file, detail)}
+        >
+            <i className="codicon codicon-file" aria-hidden="true" />
+            <span className={`status-badge status-badge--${file.status.toLowerCase()}`}>{file.status}</span>
+            <span className="file-card__path">
+                {origFilename ? <span className="file-card__rename">{origFilename} {'->'} </span> : null}
+                <strong>{filename}</strong>
+            </span>
+            <span className="file-card__stats">
+                <span className="file-card__stats--add">+{file.additions}</span>
+                <span className="file-card__stats--del">-{file.deletions}</span>
+            </span>
+        </button>
+    );
+}
+
 function FolderGroup({ labelParts, node, depth, detail, onOpenDiff }: Readonly<FolderGroupProps>) {
     const compressed = compressFolder(labelParts, node);
     const label = compressed.labelParts.join(' / ');
@@ -85,39 +112,21 @@ function FolderGroup({ labelParts, node, depth, detail, onOpenDiff }: Readonly<F
                     <span>{label}</span>
                 </button>
             )}
-            {expanded ? compressed.node.files.map((file) => {
-                const filename = file.path.split('/').at(-1) ?? file.path;
-                const origFilename = file.originalPath ? (file.originalPath.split('/').at(-1) ?? file.originalPath) : null;
-                return (
-                    <button
-                        key={`${detail.hash}-${file.path}`}
-                        type="button"
-                        className="file-card"
-                        onClick={() => onOpenDiff(file, detail)}
-                    >
-                        <i className="codicon codicon-file" aria-hidden="true" />
-                        <span className={`status-badge status-badge--${file.status.toLowerCase()}`}>{file.status}</span>
-                        <span className="file-card__path">
-                            {origFilename ? <span className="file-card__rename">{origFilename} → </span> : null}
-                            <strong>{filename}</strong>
-                        </span>
-                        <span className="file-card__stats">
-                            <span className="file-card__stats--add">+{file.additions}</span>
-                            <span className="file-card__stats--del">−{file.deletions}</span>
-                        </span>
-                    </button>
-                );
-            }) : null}
-            {expanded ? [...compressed.node.children.entries()].map(([name, child]) => (
-                <FolderGroup
-                    key={`${label}/${name}`}
-                    labelParts={[name]}
-                    node={child}
-                    depth={depth + 1}
-                    detail={detail}
-                    onOpenDiff={onOpenDiff}
-                />
-            )) : null}
+            {expanded ? (
+                <div className="tree-folder__children">
+                    {compressed.node.files.map((file) => renderCommitFile(file, detail, onOpenDiff))}
+                    {[...compressed.node.children.entries()].map(([name, child]) => (
+                        <FolderGroup
+                            key={`${detail.hash}-${label}-${name}`}
+                            labelParts={[name]}
+                            node={child}
+                            depth={depth + 1}
+                            detail={detail}
+                            onOpenDiff={onOpenDiff}
+                        />
+                    ))}
+                </div>
+            ) : null}
         </div>
     );
 }
@@ -169,8 +178,8 @@ export function CommitDetails({ detail, onOpenDiff, onClose }: Readonly<CommitDe
                         <span>Stats</span>
                         <strong>
                             <span className="file-card__stats--add">+{detail.stats.additions}</span>
-                            {' '}<span className="file-card__stats--del">−{detail.stats.deletions}</span>
-                            {' · '}{detail.stats.filesChanged}f
+                            {' '}<span className="file-card__stats--del">-{detail.stats.deletions}</span>
+                            {' � '}{detail.stats.filesChanged}f
                         </strong>
                     </div>
                 </div>
@@ -194,24 +203,7 @@ export function CommitDetails({ detail, onOpenDiff, onClose }: Readonly<CommitDe
             </div>
 
             <div className="details__files">
-                {tree.files.map((file) => {
-                    const filename = file.path.split('/').at(-1) ?? file.path;
-                    const origFilename = file.originalPath ? (file.originalPath.split('/').at(-1) ?? file.originalPath) : null;
-                    return (
-                        <button key={`${detail.hash}-${file.path}`} type="button" className="file-card" onClick={() => onOpenDiff(file, detail)}>
-                            <i className="codicon codicon-file" aria-hidden="true" />
-                            <span className={`status-badge status-badge--${file.status.toLowerCase()}`}>{file.status}</span>
-                            <span className="file-card__path">
-                                {origFilename ? <span className="file-card__rename">{origFilename} → </span> : null}
-                                <strong>{filename}</strong>
-                            </span>
-                            <span className="file-card__stats">
-                                <span className="file-card__stats--add">+{file.additions}</span>
-                                <span className="file-card__stats--del">−{file.deletions}</span>
-                            </span>
-                        </button>
-                    );
-                })}
+                {tree.files.map((file) => renderCommitFile(file, detail, onOpenDiff))}
                 {[...tree.children.entries()].map(([name, child]) => (
                     <FolderGroup
                         key={`${detail.hash}-${name}`}
