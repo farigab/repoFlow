@@ -1,6 +1,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { DiffRequest } from './core/models';
+import { GitAutoFetchService } from './infrastructure/git/GitAutoFetchService';
 import { GitCliRepository } from './infrastructure/git/GitCliRepository';
 import { registerGitWatchers } from './infrastructure/watchers/gitWatchers';
 import { GitBlameController } from './presentation/blame/GitBlameController';
@@ -32,6 +33,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const graphViewProvider = new GitGraphViewProvider(context.extensionUri, repository, output, repoStatusBar);
   const blameController = new GitBlameController(repository, output);
   const branchTreeProvider = new BranchTreeDataProvider(repository);
+  const autoFetchService = new GitAutoFetchService(repository, graphViewProvider, output);
 
   const branchTreeView = vscode.window.createTreeView('repoFlow.branchesView', {
     treeDataProvider: branchTreeProvider,
@@ -52,10 +54,12 @@ export function activate(context: vscode.ExtensionContext): void {
     repoStatusBar,
     branchTreeView,
     blameController,
+    autoFetchService,
     new vscode.Disposable(() => refreshDebounce.dispose()),
     vscode.workspace.registerTextDocumentContentProvider(GitContentProvider.scheme, contentProvider)
   );
 
+  autoFetchService.start();
   registerGitWatchers(refreshDebounce.schedule, context.subscriptions);
   registerRepoCommands(repository, graphViewProvider, context.subscriptions);
   registerBranchCommands(repository, graphViewProvider, branchTreeProvider, context.subscriptions);
