@@ -66,7 +66,8 @@ async function openNativeDiff(request: DiffRequest, provider: GitContentProvider
   const leftPath = request.originalPath ?? request.filePath;
   const leftUri = provider.createUri(request.repoRoot, leftRef, leftPath);
   const rightUri = provider.createUri(request.repoRoot, request.commitHash, request.filePath);
-  const title = `${path.basename(request.filePath)} (${leftRef.slice(0, 8)} ↔ ${request.commitHash.slice(0, 8)})`;
+  const shortRef = (ref: string) => (/^[0-9a-f]{8,}$/i.test(ref) ? ref.slice(0, 8) : ref);
+  const title = `${path.basename(request.filePath)} (${shortRef(leftRef)} <-> ${shortRef(request.commitHash)})`;
 
   await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title, {
     preview: false

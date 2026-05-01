@@ -1,4 +1,4 @@
-import type { CommitDetail, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, WorkingTreeFile, WorktreeEntry } from '../core/models';
+import type { BranchCompareResult, CommitDetail, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, UndoEntry, WorkingTreeFile, WorktreeEntry } from '../core/models';
 
 export type WebviewToExtensionMessage =
   | { type: 'ready' }
@@ -28,6 +28,7 @@ export type WebviewToExtensionMessage =
   | { type: 'openPullRequest'; payload: { repoRoot: string; sourceBranch: string; targetBranch: string; title: string; description: string } }
   | { type: 'listStashes'; payload: { repoRoot: string } }
   | { type: 'stashChanges'; payload: { repoRoot: string; message?: string; includeUntracked: boolean; paths?: string[] } }
+  | { type: 'previewStash'; payload: { repoRoot: string; ref: string } }
   | { type: 'applyStash'; payload: { repoRoot: string; ref: string; paths?: string[] } }
   | { type: 'popStash'; payload: { repoRoot: string; ref: string; paths?: string[] } }
   | { type: 'dropStash'; payload: { repoRoot: string; ref: string } }
@@ -47,7 +48,10 @@ export type WebviewToExtensionMessage =
   | { type: 'pullRepo'; payload: { repoRoot: string } }
   | { type: 'pushRepo'; payload: { repoRoot: string } }
   | { type: 'fetchRepo'; payload: { repoRoot: string } }
-  | { type: 'openFile'; payload: { repoRoot: string; filePath: string } };
+  | { type: 'openFile'; payload: { repoRoot: string; filePath: string } }
+  | { type: 'compareBranches'; payload: { repoRoot: string; baseRef: string; targetRef: string } }
+  | { type: 'listUndoEntries'; payload: { repoRoot: string } }
+  | { type: 'undoTo'; payload: { repoRoot: string; ref: string } };
 
 export type ExtensionToWebviewMessage =
   | { type: 'graphSnapshot'; payload: GraphSnapshot }
@@ -57,4 +61,6 @@ export type ExtensionToWebviewMessage =
   | { type: 'notification'; payload: { kind: 'info' | 'error'; message: string } }
   | { type: 'stashList'; payload: { entries: StashEntry[] } }
   | { type: 'worktreeList'; payload: { entries: WorktreeEntry[] } }
-  | { type: 'worktreeError'; payload: { message: string; path?: string; canForce?: boolean } };
+  | { type: 'worktreeError'; payload: { message: string; path?: string; canForce?: boolean } }
+  | { type: 'branchCompareResult'; payload: BranchCompareResult }
+  | { type: 'undoEntries'; payload: { entries: UndoEntry[] } };

@@ -47,9 +47,12 @@ async function pickRepoAction(
   }
   items.push(
     { label: '$(sync) Fetch', description: 'Update remote refs', action: 'fetch' },
-    { label: '', kind: vscode.QuickPickItemKind.Separator, description: '', action: '' },
     { label: '$(git-branch) Open Graph', description: '', action: 'openGraph' },
-    { label: '$(git-branch) Create Branch...', description: '', action: 'createBranch' }
+    { label: '', kind: vscode.QuickPickItemKind.Separator, description: '', action: '' },
+    { label: '$(git-branch) Create Branch...', description: '', action: 'createBranch' },
+    { label: '$(git-compare) Compare Branches...', description: '', action: 'compareBranches' },
+    { label: '', kind: vscode.QuickPickItemKind.Separator, description: '', action: '' },
+    { label: '$(history) Undo Last Operation...', description: '', action: 'undoLastOperation' }
   );
 
   const choice = await vscode.window.showQuickPick(items, {
@@ -74,6 +77,8 @@ async function pickRepoAction(
     pull: () => runAndRefresh((r) => repository.pull(r)),
     push: () => runAndRefresh((r) => repository.push(r)),
     fetch: () => runAndRefresh((r) => repository.fetch(r)),
+    compareBranches: async () => pickCompareBranches(repository),
+    undoLastOperation: async () => pickUndoOperation(repository, graphViewProvider),
     openGraph: async () => graphViewProvider.openOrReveal(),
     createBranch: async () => vscode.commands.executeCommand('repoFlow.createBranch'),
   };
@@ -138,6 +143,60 @@ async function pickCreateBranch(
   await graphViewProvider.refresh();
 }
 
+async function pickCompareBranches(repository: GitRepository): Promise<void> {
+  const repoRoot = await repository.resolveRepositoryRoot();
+  const branches = await repository.getBranches(repoRoot);
+  const localBranches = branches.filter((branch) => !branch.remote);
+
+  const base = await vscode.window.showQuickPick(
+    localBranches.map((branch) => ({ label: branch.shortName, description: branch.current ? '(current)' : '' })),
+    { title: 'Compare Branches', placeHolder: 'Select base branch' }
+  );
+  if (!base) return;
+
+  const target = await vscode.window.showQuickPick(
+    localBranches
+      .filter((branch) => branch.shortName !== base.label)
+      .map((branch) => ({ label: branch.shortName, description: branch.current ? '(current)' : '' })),
+    { title: 'Compare Branches', placeHolder: 'Select target branch' }
+  );
+  if (!target) return;
+
+  const result = await repository.compareBranches(repoRoot, base.label, target.label);
+  const summary = `${target.label} is ${result.ahead} ahead / ${result.behind} behind ${base.label}. Changed files: ${result.files.length}.`;
+  void vscode.window.showInformationMessage(`RepoFlow: ${summary}`);
+}
+
+async function pickUndoOperation(repository: GitRepository, graphViewProvider: GitGraphViewProvider): Promise<void> {
+  const repoRoot = await repository.resolveRepositoryRoot();
+  const entries = await repository.listUndoEntries(repoRoot);
+  if (entries.length === 0) {
+    void vscode.window.showInformationMessage('RepoFlow: No undo entries available in reflog.');
+    return;
+  }
+
+  const selection = await vscode.window.showQuickPick(
+    entries.map((entry) => ({
+      label: `${entry.ref} · ${entry.shortHash}`,
+      description: entry.message,
+      detail: new Date(entry.date).toLocaleString(),
+      ref: entry.ref
+    })),
+    { title: 'Undo Last Operation', placeHolder: 'Select a reflog entry to reset to' }
+  );
+  if (!selection) return;
+
+  const confirmed = await vscode.window.showWarningMessage(
+    `Undo to ${selection.ref}? This performs a hard reset and can discard uncommitted changes.`,
+    { modal: true },
+    'Undo'
+  );
+  if (confirmed !== 'Undo') return;
+
+  await repository.undoTo(repoRoot, selection.ref);
+  await graphViewProvider.refresh();
+}
+
 // ─────────────────────────────────────────────
 // Registration
 // ─────────────────────────────────────────────
@@ -180,6 +239,22 @@ export function registerRepoCommands(
     vscode.commands.registerCommand('repoFlow.createBranch', async () => {
       try {
         await pickCreateBranch(repository, graphViewProvider);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        void vscode.window.showErrorMessage(`RepoFlow: ${msg}`);
+      }
+    }),
+    vscode.commands.registerCommand('repoFlow.compareBranches', async () => {
+      try {
+        await pickCompareBranches(repository);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        void vscode.window.showErrorMessage(`RepoFlow: ${msg}`);
+      }
+    }),
+    vscode.commands.registerCommand('repoFlow.undoLastOperation', async () => {
+      try {
+        await pickUndoOperation(repository, graphViewProvider);
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         void vscode.window.showErrorMessage(`RepoFlow: ${msg}`);

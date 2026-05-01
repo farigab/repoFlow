@@ -39,4 +39,44 @@ export function registerGitWatchers(
     watcher.onDidDelete(onChanged, undefined, subscriptions);
     subscriptions.push(watcher);
   }
+
+  // Also listen to the built-in Git extension state changes. This captures
+  // commits/actions performed from VS Code native Source Control even when
+  // filesystem watchers miss events (e.g. worktree indirection).
+  const gitExtension = vscode.extensions.getExtension('vscode.git');
+  const gitExports = gitExtension?.isActive ? gitExtension.exports : gitExtension?.activate();
+
+  void Promise.resolve(gitExports).then((exportsValue) => {
+    const api = (exportsValue as { getAPI?: (version: number) => unknown } | undefined)?.getAPI?.(1) as
+      | {
+        repositories?: Array<{ state?: { onDidChange?: vscode.Event<unknown> } }>;
+        onDidOpenRepository?: vscode.Event<{ state?: { onDidChange?: vscode.Event<unknown> } }>;
+      }
+      | undefined;
+
+    if (!api) {
+      return;
+    }
+
+    const attachRepositoryListener = (repository: { state?: { onDidChange?: vscode.Event<unknown> } }): void => {
+      const stateChanged = repository.state?.onDidChange;
+      if (!stateChanged) {
+        return;
+      }
+      subscriptions.push(stateChanged(() => onChanged()));
+    };
+
+    for (const repository of api.repositories ?? []) {
+      attachRepositoryListener(repository);
+    }
+
+    if (api.onDidOpenRepository) {
+      subscriptions.push(
+        api.onDidOpenRepository((repository) => {
+          attachRepositoryListener(repository);
+          onChanged();
+        })
+      );
+    }
+  });
 }

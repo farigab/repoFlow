@@ -201,8 +201,7 @@ select:focus {
 .details {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .graph__viewport,
@@ -572,6 +571,14 @@ mark.find-highlight {
   gap: 0.75rem;
 }
 
+.details__header-main > div {
+  min-width: 0;
+}
+
+.details__header-main h2 {
+  overflow-wrap: anywhere;
+}
+
 .changes__summary {
   display: flex;
   align-items: center;
@@ -670,12 +677,15 @@ mark.find-highlight {
 }
 
 .details__body {
+  flex-shrink: 0;
   margin: 0.75rem 0.85rem 0;
   padding: 0.7rem 0.8rem;
   font-size: 0.85rem;
   line-height: 1.55;
   white-space: pre-wrap;
   overflow-x: hidden;
+  overflow-y: auto;
+  max-height: min(28vh, 12rem);
   word-break: break-word;
   color: color-mix(in srgb, var(--text) 88%, white 12%);
   border: 1px solid var(--panel-border);
@@ -684,6 +694,9 @@ mark.find-highlight {
 }
 
 .details__files {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
   display: flex;
   flex-direction: column;
   gap: 0.42rem;
@@ -691,6 +704,7 @@ mark.find-highlight {
 }
 
 .details__file-summary {
+  flex-shrink: 0;
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
@@ -738,8 +752,17 @@ mark.find-highlight {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  padding-left: 0.85rem;
   margin-top: 0.15rem;
+}
+
+.tree-folder__children {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  margin-top: 0.1rem;
+  margin-left: 1rem;
+  padding-left: 0.55rem;
+  border-left: 1px solid color-mix(in srgb, var(--panel-border) 65%, transparent);
 }
 
 .tree-folder {
@@ -1204,6 +1227,7 @@ mark.find-highlight {
   align-items: center;
   gap: 0.1rem;
   flex-shrink: 0;
+  position: relative;
 }
 
 .panel__settings-btn {
@@ -1229,6 +1253,36 @@ mark.find-highlight {
 
 .panel__settings-btn .codicon {
   font-size: 1rem;
+}
+
+.panel-actions-menu {
+  position: absolute;
+  top: calc(100% + 0.2rem);
+  right: 0;
+  z-index: 60;
+  min-width: 15rem;
+  display: grid;
+  gap: 2px;
+  padding: 0.35rem;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: var(--vscode-menu-background, var(--panel));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+}
+
+.panel-actions-menu button {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+  border-radius: 5px;
+  padding: 0.38rem 0.45rem;
+}
+
+.panel-actions-menu button:hover {
+  background: var(--vscode-menu-selectionBackground, rgba(0, 127, 212, 0.2));
 }
 
 /* ── Repository Settings Modal ──────────────────────────────── */
@@ -2663,7 +2717,7 @@ mark.find-highlight {
   gap: 0.55rem;
   padding: 0.85rem 1rem 1rem;
   border-top: 1px solid var(--panel-border);
-  background: color-mix(in srgb, var(--panel-bg) 60%, transparent 40%);
+  background: color-mix(in srgb, var(--panel) 60%, transparent 40%);
 }
 
 .worktree-add-form__title {
@@ -2739,4 +2793,35 @@ mark.find-highlight {
   color: var(--muted);
   opacity: 0.75;
   margin: 0;
+}
+
+.compare-summary {
+  margin: 0.35rem 0;
+  color: var(--muted-strong);
+}
+
+.compare-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.compare-list {
+  max-height: 14rem;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel) 60%, var(--bg) 40%);
+  font-size: 0.84rem;
+}
+
+.undo-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
 }
