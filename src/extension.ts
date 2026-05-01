@@ -1,5 +1,6 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { RefreshCoordinator } from './application/refresh/RefreshCoordinator';
 import type { DiffRequest } from './core/models';
 import { GitAutoFetchService } from './infrastructure/git/GitAutoFetchService';
 import { GitCliRepository } from './infrastructure/git/GitCliRepository';
@@ -11,7 +12,6 @@ import { registerRepoCommands } from './presentation/commands/registerRepoComman
 import { GitContentProvider } from './presentation/diff/GitContentProvider';
 import { GitGraphViewProvider } from './presentation/webview/GitGraphViewProvider';
 import { EMPTY_TREE } from './shared/constants';
-import { createDebounce } from './shared/debounce';
 
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel('RepoFlow');
@@ -30,39 +30,53 @@ export function activate(context: vscode.ExtensionContext): void {
   repoStatusBar.tooltip = 'RepoFlow: Click to see repo actions';
   repoStatusBar.show();
 
-  const graphViewProvider = new GitGraphViewProvider(context.extensionUri, repository, output, repoStatusBar);
+  let refreshCoordinator!: RefreshCoordinator;
+  const graphViewProvider = new GitGraphViewProvider(
+    context.extensionUri,
+    repository,
+    output,
+    repoStatusBar,
+    () => refreshCoordinator.requestRefresh('webview-action')
+  );
   const blameController = new GitBlameController(repository, output);
   const branchTreeProvider = new BranchTreeDataProvider(repository);
-  const autoFetchService = new GitAutoFetchService(repository, graphViewProvider, output);
 
   const branchTreeView = vscode.window.createTreeView('repoFlow.branchesView', {
     treeDataProvider: branchTreeProvider,
     showCollapseAll: true
   });
 
-  const refreshDebounce = createDebounce(() => {
-    blameController.invalidateCache();
-    branchTreeProvider.refresh();
-    void graphViewProvider.refresh().catch((error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      output.appendLine(`[watcher-error] ${message}`);
-    });
-  }, 250);
+  refreshCoordinator = new RefreshCoordinator({
+    invalidateBlameCache: () => blameController.invalidateCache(),
+    refreshBranchTree: () => branchTreeProvider.refresh(),
+    refreshGraph: () => graphViewProvider.refresh(),
+    output
+  });
+  const autoFetchService = new GitAutoFetchService(
+    repository,
+    () => refreshCoordinator.requestRefresh('auto-fetch'),
+    output
+  );
 
   context.subscriptions.push(
     output,
     repoStatusBar,
     branchTreeView,
     blameController,
+    refreshCoordinator,
     autoFetchService,
-    new vscode.Disposable(() => refreshDebounce.dispose()),
     vscode.workspace.registerTextDocumentContentProvider(GitContentProvider.scheme, contentProvider)
   );
 
   autoFetchService.start();
-  registerGitWatchers(refreshDebounce.schedule, context.subscriptions);
-  registerRepoCommands(repository, graphViewProvider, context.subscriptions);
-  registerBranchCommands(repository, graphViewProvider, branchTreeProvider, context.subscriptions);
+  registerGitWatchers(() => refreshCoordinator.requestRefresh('git-watcher'), context.subscriptions);
+  registerRepoCommands(repository, graphViewProvider, () => refreshCoordinator.requestRefresh('repo-command'), context.subscriptions);
+  registerBranchCommands(
+    repository,
+    branchTreeProvider,
+    () => refreshCoordinator.requestRefresh('branch-command'),
+    context.subscriptions
+  );
 }
 
 async function openNativeDiff(request: DiffRequest, provider: GitContentProvider): Promise<void> {

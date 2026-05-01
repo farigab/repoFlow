@@ -29,7 +29,8 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     private readonly extensionUri: vscode.Uri,
     private readonly repository: GitRepository,
     private readonly output: vscode.OutputChannel,
-    private readonly repoStatusBar?: vscode.StatusBarItem
+    private readonly repoStatusBar?: vscode.StatusBarItem,
+    private readonly onRepositoryChanged?: () => void
   ) { }
 
   public resolveWebviewView(
@@ -761,7 +762,11 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     try {
       await this.withBusy(label, async () => {
         await action();
-        await this.refresh();
+        if (this.onRepositoryChanged) {
+          this.onRepositoryChanged();
+        } else {
+          await this.refresh();
+        }
         await this.postNotification('info', successMessage);
       });
       return true;
