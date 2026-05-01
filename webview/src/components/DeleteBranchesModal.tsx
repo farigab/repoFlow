@@ -13,7 +13,7 @@ function branchSort(left: BranchSummary, right: BranchSummary): number {
     return left.shortName.localeCompare(right.shortName);
 }
 
-export function DeleteBranchesModal({ snapshot, onClose }: DeleteBranchesModalProps) {
+export function DeleteBranchesModal({ snapshot, onClose }: Readonly<DeleteBranchesModalProps>) {
     const localBranches = snapshot.branches
         .filter((b) => !b.remote)
         .sort(branchSort);

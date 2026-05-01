@@ -65,7 +65,7 @@ function compressFolder(labelParts: string[], node: DirNode): { labelParts: stri
     return { labelParts: currentLabelParts, node: currentNode };
 }
 
-function FolderGroup({ labelParts, node, depth, detail, onOpenDiff }: FolderGroupProps) {
+function FolderGroup({ labelParts, node, depth, detail, onOpenDiff }: Readonly<FolderGroupProps>) {
     const compressed = compressFolder(labelParts, node);
     const label = compressed.labelParts.join(' / ');
     const groupClass = depth === 0 ? 'tree-group' : 'tree-subgroup';
@@ -122,7 +122,7 @@ function FolderGroup({ labelParts, node, depth, detail, onOpenDiff }: FolderGrou
     );
 }
 
-export function CommitDetails({ detail, onOpenDiff, onClose }: CommitDetailsProps) {
+export function CommitDetails({ detail, onOpenDiff, onClose }: Readonly<CommitDetailsProps>) {
     const tree = useMemo(() => detail ? buildTree(detail.files) : null, [detail]);
 
     if (!detail || !tree) {

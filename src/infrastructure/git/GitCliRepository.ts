@@ -344,8 +344,10 @@ export class GitCliRepository implements GitRepository {
     this.graphCache.clear();
   }
 
-  public async discardFile(repoRoot: string, targetPath: string, tracked: boolean): Promise<void> {
-    if (tracked) {
+  public async discardFile(repoRoot: string, targetPath: string, tracked: boolean, stagedAddition = false): Promise<void> {
+    if (stagedAddition) {
+      await this.runGit(repoRoot, ['rm', '--force', '--', targetPath]);
+    } else if (tracked) {
       await this.runGit(repoRoot, ['restore', '--source=HEAD', '--staged', '--worktree', '--', targetPath]);
     } else {
       await this.runGit(repoRoot, ['clean', '-fd', '--', targetPath]);
@@ -377,19 +379,22 @@ export class GitCliRepository implements GitRepository {
         isRemoteRef = false;
       }
 
+      let createError: unknown;
       try {
         if (isRemoteRef) {
           await this.runGit(repoRoot, ['checkout', '--track', '-b', name, fromRef]);
         } else {
           await this.runGit(repoRoot, ['checkout', '-b', name, fromRef]);
         }
-      } catch {
+      } catch (error) {
+        createError = error;
         // If creation fails (e.g. branch already exists) attempt to
         // checkout the existing branch so the user ends up on it.
         try {
           await this.runGit(repoRoot, ['checkout', name]);
         } catch {
-          // swallow — best-effort
+          const message = createError instanceof Error ? createError.message : String(createError);
+          throw new Error(message);
         }
       }
     } else {
@@ -862,3 +867,4 @@ export class GitCliRepository implements GitRepository {
     }
   }
 }
+
