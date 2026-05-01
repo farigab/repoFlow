@@ -33,6 +33,22 @@
     "onStartupFinished"
   ],
   "contributes": {
+    "configuration": {
+      "title": "RepoFlow",
+      "properties": {
+        "repoFlow.autoFetch.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically fetch remote refs while the VS Code window is focused so RepoFlow can detect incoming commits."
+        },
+        "repoFlow.autoFetch.intervalSeconds": {
+          "type": "number",
+          "default": 120,
+          "minimum": 30,
+          "description": "Seconds between automatic fetch checks while RepoFlow is active. Values below 30 are clamped to 30."
+        }
+      }
+    },
     "views": {
       "scm": [
         {
