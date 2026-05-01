@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
 interface RefreshCoordinatorDeps {
+  clearTransientCaches: () => void;
   invalidateBlameCache: () => void;
   refreshBranchTree: () => void;
   refreshGraph: () => Promise<void>;
@@ -53,6 +54,7 @@ export class RefreshCoordinator implements vscode.Disposable {
 
     this.inFlight = true;
     try {
+      this.deps.clearTransientCaches();
       this.deps.invalidateBlameCache();
       this.deps.refreshBranchTree();
       await this.deps.refreshGraph();

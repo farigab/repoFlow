@@ -47,6 +47,7 @@ export function activate(context: vscode.ExtensionContext): void {
   });
 
   refreshCoordinator = new RefreshCoordinator({
+    clearTransientCaches: () => repository.clearTransientCaches(),
     invalidateBlameCache: () => blameController.invalidateCache(),
     refreshBranchTree: () => branchTreeProvider.refresh(),
     refreshGraph: () => graphViewProvider.refresh(),
