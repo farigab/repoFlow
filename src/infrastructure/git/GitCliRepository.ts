@@ -15,6 +15,7 @@ import type {
   RepoGitConfig,
   RepoSpecialState,
   StashEntry,
+  StashFile,
   WorkingTreeStatus,
   WorktreeEntry
 } from '../../core/models';
@@ -67,10 +68,40 @@ function parseStashList(raw: string): StashEntry[] {
     const branchMatch = /^(?:WIP on|On) ([^:]+):/.exec(subject);
     const branch = branchMatch ? branchMatch[1].trim() : '';
 
-    entries.push({ index, ref, message: subject, branch, date });
+    entries.push({ index, ref, message: subject, branch, date, files: [] });
   }
 
   return entries;
+}
+
+function parseStashFiles(raw: string): StashFile[] {
+  const parts = raw.split('\0').filter(Boolean);
+  const files: StashFile[] = [];
+
+  for (let index = 0; index < parts.length;) {
+    const rawStatus = parts[index++]?.trim();
+    if (!rawStatus) {
+      continue;
+    }
+
+    const status = rawStatus.replaceAll(/\d+/g, '') || rawStatus;
+
+    if (status.startsWith('R') || status.startsWith('C')) {
+      const originalPath = parts[index++];
+      const filePath = parts[index++];
+      if (filePath) {
+        files.push({ path: filePath, originalPath, status: status[0] });
+      }
+      continue;
+    }
+
+    const filePath = parts[index++];
+    if (filePath) {
+      files.push({ path: filePath, status: status[0] ?? status });
+    }
+  }
+
+  return files;
 }
 
 export class GitCliRepository implements GitRepository {
@@ -493,27 +524,56 @@ export class GitCliRepository implements GitRepository {
       '--format=%gd\x1f%s\x1f%ci\x1e'
     ]).catch(() => '');
 
-    return parseStashList(raw);
+    const entries = parseStashList(raw);
+    return Promise.all(entries.map(async (entry) => ({
+      ...entry,
+      files: await this.listStashFiles(repoRoot, entry.ref).catch(() => [])
+    })));
   }
 
   public async stashChanges(repoRoot: string, message?: string, includeUntracked = false, paths?: string[]): Promise<void> {
     const args = ['stash', 'push'];
+    const selectedPaths = this.normalizePathList(paths);
+
     if (includeUntracked) args.push('--include-untracked');
     if (message?.trim()) args.push('-m', message.trim());
-    if (paths && paths.length > 0) {
-      args.push('--', ...paths);
+    if (selectedPaths.length > 0) {
+      args.push('--', ...selectedPaths);
     }
     await this.runGit(repoRoot, args);
     this.graphCache.clear();
   }
 
-  public async applyStash(repoRoot: string, ref: string): Promise<void> {
-    await this.runGit(repoRoot, ['stash', 'apply', ref]);
+  public async applyStash(repoRoot: string, ref: string, paths?: string[]): Promise<void> {
+    const selectedPaths = this.normalizePathList(paths);
+    if (selectedPaths.length === 0) {
+      await this.runGit(repoRoot, ['stash', 'apply', ref]);
+      this.graphCache.clear();
+      return;
+    }
+
+    const files = await this.listStashFiles(repoRoot, ref).catch(() => []);
+    await this.restoreStashPaths(repoRoot, ref, selectedPaths, files);
     this.graphCache.clear();
   }
 
-  public async popStash(repoRoot: string, ref: string): Promise<void> {
-    await this.runGit(repoRoot, ['stash', 'pop', ref]);
+  public async popStash(repoRoot: string, ref: string, paths?: string[]): Promise<void> {
+    const selectedPaths = this.normalizePathList(paths);
+    if (selectedPaths.length === 0) {
+      await this.runGit(repoRoot, ['stash', 'pop', ref]);
+      this.graphCache.clear();
+      return;
+    }
+
+    const files = await this.listStashFiles(repoRoot, ref).catch(() => []);
+    await this.restoreStashPaths(repoRoot, ref, selectedPaths, files);
+
+    const allPaths = new Set(files.map((file) => escapePathSpec(file.path)));
+    const selectedAllPaths = allPaths.size > 0 && selectedPaths.length >= allPaths.size && selectedPaths.every((filePath) => allPaths.has(filePath));
+    if (selectedAllPaths) {
+      await this.runGit(repoRoot, ['stash', 'drop', ref]);
+    }
+
     this.graphCache.clear();
   }
 
@@ -669,6 +729,62 @@ export class GitCliRepository implements GitRepository {
       const msg = error instanceof Error ? error.message : String(error);
       this.output.appendLine(`[openFile] Failed to open ${repoRoot}/${filePath}: ${msg}`);
     }
+  }
+
+  private async listStashFiles(repoRoot: string, ref: string): Promise<StashFile[]> {
+    const raw = await this.runGit(repoRoot, [
+      'stash',
+      'show',
+      '--include-untracked',
+      '--name-status',
+      '--find-renames',
+      '--find-copies',
+      '-z',
+      ref
+    ], { logErrors: false }).catch(() => '');
+
+    return parseStashFiles(raw);
+  }
+
+  private async restoreStashPaths(repoRoot: string, ref: string, paths: string[], files: StashFile[]): Promise<void> {
+    const fileByPath = new Map(files.map((file) => [escapePathSpec(file.path), file]));
+    const expandedPaths = new Set(paths);
+    for (const filePath of paths) {
+      const originalPath = fileByPath.get(filePath)?.originalPath;
+      if (originalPath) {
+        expandedPaths.add(escapePathSpec(originalPath));
+      }
+    }
+
+    for (const filePath of expandedPaths) {
+      const sources = [ref, `${ref}^3`];
+      let lastError: unknown;
+
+      for (const source of sources) {
+        try {
+          await this.runGit(repoRoot, ['restore', '--source', source, '--worktree', '--', filePath], { logErrors: false });
+          lastError = undefined;
+          break;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+
+      if (lastError) {
+        throw lastError;
+      }
+    }
+  }
+
+  private normalizePathList(paths?: string[]): string[] {
+    const normalized = new Set<string>();
+    for (const filePath of paths ?? []) {
+      const cleanPath = escapePathSpec(filePath);
+      if (cleanPath.trim()) {
+        normalized.add(cleanPath);
+      }
+    }
+    return [...normalized];
   }
 
   private hasDirtyChanges(localChanges: WorkingTreeStatus): boolean {

@@ -492,25 +492,47 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleStashChanges(payload: PayloadFor<'stashChanges'>): Promise<void> {
-    await this.executeRepositoryAction('Stashing changes...', async () => {
-      await this.repository.stashChanges(payload.repoRoot, payload.message, payload.includeUntracked);
-    });
+    const selectedPaths = payload.paths ? this.getSelectedPaths(payload.paths) ?? [] : undefined;
+    if (selectedPaths !== undefined && selectedPaths.length === 0) {
+      await this.postNotification('error', 'Select at least one file to stash.');
+      return;
+    }
+
+    await this.executeRepositoryAction('Stashing selected files...', async () => {
+      await this.repository.stashChanges(payload.repoRoot, payload.message, payload.includeUntracked, selectedPaths);
+    }, selectedPaths ? 'Selected files stashed.' : undefined);
     const entries = await this.repository.listStashes(payload.repoRoot);
     await this.postMessage({ type: 'stashList', payload: { entries } });
   }
 
   private async handleApplyStash(payload: PayloadFor<'applyStash'>): Promise<void> {
-    await this.executeRepositoryAction('Applying stash...', async () => {
-      await this.repository.applyStash(payload.repoRoot, payload.ref);
-    });
+    const selectedPaths = payload.paths ? this.getSelectedPaths(payload.paths) ?? [] : undefined;
+    if (selectedPaths !== undefined && selectedPaths.length === 0) {
+      await this.postNotification('error', 'Select at least one file to apply.');
+      return;
+    }
+
+    await this.executeRepositoryAction(selectedPaths ? 'Applying selected stash files...' : 'Applying stash...', async () => {
+      await this.repository.applyStash(payload.repoRoot, payload.ref, selectedPaths);
+    }, selectedPaths ? 'Selected stash files applied.' : undefined);
     const entries = await this.repository.listStashes(payload.repoRoot);
     await this.postMessage({ type: 'stashList', payload: { entries } });
   }
 
   private async handlePopStash(payload: PayloadFor<'popStash'>): Promise<void> {
-    await this.executeRepositoryAction('Popping stash...', async () => {
-      await this.repository.popStash(payload.repoRoot, payload.ref);
-    });
+    const selectedPaths = payload.paths ? this.getSelectedPaths(payload.paths) ?? [] : undefined;
+    if (selectedPaths !== undefined && selectedPaths.length === 0) {
+      await this.postNotification('error', 'Select at least one file to pop.');
+      return;
+    }
+
+    const entriesBefore = selectedPaths ? await this.repository.listStashes(payload.repoRoot) : [];
+    const selectedStash = entriesBefore.find((entry) => entry.ref === payload.ref);
+    const isPartialPop = Boolean(selectedPaths && selectedStash?.files.length && selectedPaths.length < selectedStash.files.length);
+
+    await this.executeRepositoryAction(selectedPaths ? 'Restoring selected stash files...' : 'Popping stash...', async () => {
+      await this.repository.popStash(payload.repoRoot, payload.ref, selectedPaths);
+    }, isPartialPop ? 'Selected files restored. The stash was kept because only part of it was selected.' : undefined);
     const entries = await this.repository.listStashes(payload.repoRoot);
     await this.postMessage({ type: 'stashList', payload: { entries } });
   }
@@ -674,11 +696,19 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
   // Remote/PR helpers moved to GitGraphUtils.ts
 
-  private async executeRepositoryAction(label: string, action: () => Promise<void>): Promise<void> {
+  private getSelectedPaths(paths?: string[]): string[] | undefined {
+    if (!paths) {
+      return undefined;
+    }
+
+    return paths.filter((filePath) => filePath.trim().length > 0);
+  }
+
+  private async executeRepositoryAction(label: string, action: () => Promise<void>, successMessage = 'Operation completed successfully.'): Promise<void> {
     await this.withBusy(label, async () => {
       await action();
       await this.refresh();
-      await this.postNotification('info', 'Operation completed successfully.');
+      await this.postNotification('info', successMessage);
     }).catch(async (error) => {
       const message = error instanceof Error ? error.message : String(error);
       this.output.appendLine(`[ui-error] ${message}`);
