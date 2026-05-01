@@ -19,7 +19,8 @@ const SPECIAL_LABEL: Record<string, string> = {
 
 async function pickRepoAction(
   repository: GitRepository,
-  graphViewProvider: GitGraphViewProvider
+  graphViewProvider: GitGraphViewProvider,
+  onRepositoryChanged: () => void
 ): Promise<void> {
   const repoRoot = await repository.resolveRepositoryRoot();
   const status = await repository.getLocalChanges(repoRoot);
@@ -67,7 +68,7 @@ async function pickRepoAction(
 
   const runAndRefresh = async (fn: RunAction): Promise<void> => {
     await fn(repoRoot);
-    await graphViewProvider.refresh();
+    onRepositoryChanged();
   };
 
   const actions: Record<string, () => Promise<void>> = {
@@ -78,7 +79,7 @@ async function pickRepoAction(
     push: () => runAndRefresh((r) => repository.push(r)),
     fetch: () => runAndRefresh((r) => repository.fetch(r)),
     compareBranches: async () => pickCompareBranches(repository),
-    undoLastOperation: async () => pickUndoOperation(repository, graphViewProvider),
+    undoLastOperation: async () => pickUndoOperation(repository, onRepositoryChanged),
     openGraph: async () => graphViewProvider.openOrReveal(),
     createBranch: async () => vscode.commands.executeCommand('repoFlow.createBranch'),
   };
@@ -88,7 +89,7 @@ async function pickRepoAction(
 
 async function pickCreateBranch(
   repository: GitRepository,
-  graphViewProvider: GitGraphViewProvider
+  onRepositoryChanged: () => void
 ): Promise<void> {
   const repoRoot = await repository.resolveRepositoryRoot();
 
@@ -140,7 +141,7 @@ async function pickCreateBranch(
   if (!name) return;
 
   await repository.createBranch(repoRoot, `${branchType.description}${name.trim()}`, fromBranch.label);
-  await graphViewProvider.refresh();
+  onRepositoryChanged();
 }
 
 async function pickCompareBranches(repository: GitRepository): Promise<void> {
@@ -167,7 +168,7 @@ async function pickCompareBranches(repository: GitRepository): Promise<void> {
   void vscode.window.showInformationMessage(`RepoFlow: ${summary}`);
 }
 
-async function pickUndoOperation(repository: GitRepository, graphViewProvider: GitGraphViewProvider): Promise<void> {
+async function pickUndoOperation(repository: GitRepository, onRepositoryChanged: () => void): Promise<void> {
   const repoRoot = await repository.resolveRepositoryRoot();
   const entries = await repository.listUndoEntries(repoRoot);
   if (entries.length === 0) {
@@ -194,7 +195,7 @@ async function pickUndoOperation(repository: GitRepository, graphViewProvider: G
   if (confirmed !== 'Undo') return;
 
   await repository.undoTo(repoRoot, selection.ref);
-  await graphViewProvider.refresh();
+  onRepositoryChanged();
 }
 
 // ─────────────────────────────────────────────
@@ -204,6 +205,7 @@ async function pickUndoOperation(repository: GitRepository, graphViewProvider: G
 export function registerRepoCommands(
   repository: GitRepository,
   graphViewProvider: GitGraphViewProvider,
+  onRepositoryChanged: () => void,
   subscriptions: vscode.ExtensionContext['subscriptions']
 ): void {
   subscriptions.push(
@@ -212,33 +214,33 @@ export function registerRepoCommands(
     }),
     vscode.commands.registerCommand('repoFlow.showRepoActions', async () => {
       try {
-        await pickRepoAction(repository, graphViewProvider);
+        await pickRepoAction(repository, graphViewProvider, onRepositoryChanged);
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         void vscode.window.showErrorMessage(`RepoFlow: ${msg}`);
       }
     }),
     vscode.commands.registerCommand('repoFlow.refresh', async () => {
-      await graphViewProvider.refresh();
+      onRepositoryChanged();
     }),
     vscode.commands.registerCommand('repoFlow.fetch', async () => {
       const repoRoot = await repository.resolveRepositoryRoot();
       await repository.fetch(repoRoot);
-      await graphViewProvider.refresh();
+      onRepositoryChanged();
     }),
     vscode.commands.registerCommand('repoFlow.pull', async () => {
       const repoRoot = await repository.resolveRepositoryRoot();
       await repository.pull(repoRoot);
-      await graphViewProvider.refresh();
+      onRepositoryChanged();
     }),
     vscode.commands.registerCommand('repoFlow.push', async () => {
       const repoRoot = await repository.resolveRepositoryRoot();
       await repository.push(repoRoot);
-      await graphViewProvider.refresh();
+      onRepositoryChanged();
     }),
     vscode.commands.registerCommand('repoFlow.createBranch', async () => {
       try {
-        await pickCreateBranch(repository, graphViewProvider);
+        await pickCreateBranch(repository, onRepositoryChanged);
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         void vscode.window.showErrorMessage(`RepoFlow: ${msg}`);
@@ -254,7 +256,7 @@ export function registerRepoCommands(
     }),
     vscode.commands.registerCommand('repoFlow.undoLastOperation', async () => {
       try {
-        await pickUndoOperation(repository, graphViewProvider);
+        await pickUndoOperation(repository, onRepositoryChanged);
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         void vscode.window.showErrorMessage(`RepoFlow: ${msg}`);
@@ -282,7 +284,7 @@ export function registerRepoCommands(
 
         const amend = choice.label === 'Amend Last Commit';
         await repository.commit(repoRoot, message.trim(), amend);
-        await graphViewProvider.refresh();
+        onRepositoryChanged();
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         void vscode.window.showErrorMessage(`RepoFlow: ${msg}`);

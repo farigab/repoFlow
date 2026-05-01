@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import type { GitRepository } from '../../core/ports/GitRepository';
 import { BranchTreeDataProvider, BranchTreeItem } from '../branches/BranchTreeDataProvider';
-import type { GitGraphViewProvider } from '../webview/GitGraphViewProvider';
 
 // ─────────────────────────────────────────────
 // Deletion helpers — extracted to keep the delete command handler lean
@@ -77,8 +76,8 @@ async function deleteLocalBranchWithConfirm(
 
 export function registerBranchCommands(
   repository: GitRepository,
-  graphViewProvider: GitGraphViewProvider,
   branchTreeProvider: BranchTreeDataProvider,
+  onRepositoryChanged: () => void,
   subscriptions: vscode.ExtensionContext['subscriptions']
 ): void {
   subscriptions.push(
@@ -102,8 +101,7 @@ export function registerBranchCommands(
         return;
       }
 
-      branchTreeProvider.refresh();
-      await graphViewProvider.refresh();
+      onRepositoryChanged();
     }),
     vscode.commands.registerCommand('repoFlow.branches.delete', async (item: BranchTreeItem) => {
       if (!item?.branch) return;
@@ -133,8 +131,7 @@ export function registerBranchCommands(
         await deleteLocalBranchWithConfirm(repository, repoRoot, item.branch.shortName);
       }
 
-      branchTreeProvider.refresh();
-      await graphViewProvider.refresh();
+      onRepositoryChanged();
     }),
     vscode.commands.registerCommand('repoFlow.branches.merge', async (item: BranchTreeItem) => {
       if (!item?.branch) return;
@@ -157,8 +154,7 @@ export function registerBranchCommands(
         return;
       }
 
-      branchTreeProvider.refresh();
-      await graphViewProvider.refresh();
+      onRepositoryChanged();
     })
   );
 }

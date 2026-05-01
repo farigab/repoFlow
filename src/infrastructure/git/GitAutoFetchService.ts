@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import type { GitRepository } from '../../core/ports/GitRepository';
-import type { GitGraphViewProvider } from '../../presentation/webview/GitGraphViewProvider';
 
 const STARTUP_DELAY_MS = 3_000;
 const FOCUS_DELAY_MS = 1_000;
@@ -22,7 +21,7 @@ export class GitAutoFetchService implements vscode.Disposable {
 
   public constructor(
     private readonly repository: GitRepository,
-    private readonly graphViewProvider: GitGraphViewProvider,
+    private readonly onRepositoryChanged: () => void,
     private readonly output: vscode.OutputChannel
   ) { }
 
@@ -98,7 +97,7 @@ export class GitAutoFetchService implements vscode.Disposable {
         if (repoConfig.remotes.length > 0) {
           await this.repository.fetch(repoRoot, { quiet: true });
           this.lastFetchByRepo.set(repoRoot, Date.now());
-          await this.graphViewProvider.refresh();
+          this.onRepositoryChanged();
         }
       }
     } catch (error) {
