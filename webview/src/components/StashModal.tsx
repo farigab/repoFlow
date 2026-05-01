@@ -237,6 +237,13 @@ export function StashModal({ snapshot, stashes, onClose }: StashModalProps) {
         });
     };
 
+    const handlePreview = (entry: StashEntry) => {
+        vscode.postMessage({
+            type: 'previewStash',
+            payload: { repoRoot: snapshot.repoRoot, ref: entry.ref }
+        });
+    };
+
     const handlePop = (entry: StashEntry) => {
         const selectedPaths = selectedOrAll(entry, selectedStashFiles);
         vscode.postMessage({
@@ -337,6 +344,15 @@ export function StashModal({ snapshot, stashes, onClose }: StashModalProps) {
                                                     </span>
                                                 </div>
                                                 <div className="stash-entry__actions">
+                                                    <button
+                                                        type="button"
+                                                        className="stash-action-btn"
+                                                        onClick={() => handlePreview(entry)}
+                                                        title="Preview the stash patch before applying or dropping"
+                                                    >
+                                                        <i className="codicon codicon-diff" aria-hidden="true" />
+                                                        Preview
+                                                    </button>
                                                     <button
                                                         type="button"
                                                         className="stash-action-btn"

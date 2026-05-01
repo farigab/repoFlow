@@ -228,6 +228,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
       openPullRequest: async (p) => this.handleOpenPullRequest(p),
       listStashes: async (p) => this.handleListStashes(p),
       stashChanges: async (p) => this.handleStashChanges(p),
+      previewStash: async (p) => this.handlePreviewStash(p),
       applyStash: async (p) => this.handleApplyStash(p),
       popStash: async (p) => this.handlePopStash(p),
       dropStash: async (p) => this.handleDropStash(p),
@@ -247,7 +248,10 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
       pullRepo: async (p) => this.handlePullRepo(p),
       pushRepo: async (p) => this.handlePushRepo(p),
       fetchRepo: async (p) => this.handleFetchRepo(p),
-      openFile: async (p) => this.handleOpenFile(p)
+      openFile: async (p) => this.handleOpenFile(p),
+      compareBranches: async (p) => this.handleCompareBranches(p),
+      listUndoEntries: async (p) => this.handleListUndoEntries(p),
+      undoTo: async (p) => this.handleUndoTo(p)
     };
 
     const handler = handlers[message.type];
@@ -499,7 +503,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
   private async handleStashChanges(payload: PayloadFor<'stashChanges'>): Promise<void> {
     const selectedPaths = payload.paths ? this.getSelectedPaths(payload.paths) ?? [] : undefined;
-    if (selectedPaths !== undefined && selectedPaths.length === 0) {
+    if (selectedPaths?.length === 0) {
       await this.postNotification('error', 'Select at least one file to stash.');
       return;
     }
@@ -512,9 +516,21 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     await this.postMessage({ type: 'stashList', payload: { entries } });
   }
 
+  private async handlePreviewStash(payload: PayloadFor<'previewStash'>): Promise<void> {
+    try {
+      await this.withBusy('Opening stash preview...', async () => {
+        await this.repository.previewStash(payload.repoRoot, payload.ref);
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.output.appendLine(`[ui-error] ${message}`);
+      await this.postNotification('error', message);
+    }
+  }
+
   private async handleApplyStash(payload: PayloadFor<'applyStash'>): Promise<void> {
     const selectedPaths = payload.paths ? this.getSelectedPaths(payload.paths) ?? [] : undefined;
-    if (selectedPaths !== undefined && selectedPaths.length === 0) {
+    if (selectedPaths?.length === 0) {
       await this.postNotification('error', 'Select at least one file to apply.');
       return;
     }
@@ -529,7 +545,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
   private async handlePopStash(payload: PayloadFor<'popStash'>): Promise<void> {
     const selectedPaths = payload.paths ? this.getSelectedPaths(payload.paths) ?? [] : undefined;
-    if (selectedPaths !== undefined && selectedPaths.length === 0) {
+    if (selectedPaths?.length === 0) {
       await this.postNotification('error', 'Select at least one file to pop.');
       return;
     }
@@ -588,12 +604,16 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       this.output.appendLine(`[worktree-remove] ${msg}`);
-      await this.postMessage({ type: 'worktreeError', payload: { message: msg, path: worktreePath, canForce: !force } });
+      await this.postMessage({
+        type: 'worktreeError',
+        payload: { message: msg, path: worktreePath, canForce: !force && this.isDirtyWorktreeRemovalError(msg) }
+      });
     }
   }
 
   private async handleOpenWorktreeInWindow(payload: PayloadFor<'openWorktreeInWindow'>): Promise<void> {
     await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(payload.path), { forceNewWindow: true });
+    await this.postNotification('info', 'Worktree opened in a new window.');
   }
 
   private async handleRevealWorktreeInOs(payload: PayloadFor<'revealWorktreeInOs'>): Promise<void> {
@@ -602,6 +622,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
   private async handleCopyWorktreePath(payload: PayloadFor<'copyWorktreePath'>): Promise<void> {
     await vscode.env.clipboard.writeText(payload.path);
+    await this.postNotification('info', 'Worktree path copied to clipboard.');
   }
 
   private async handleLockWorktree(payload: PayloadFor<'lockWorktree'>): Promise<void> {
@@ -703,6 +724,29 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     await vscode.window.showTextDocument(doc, { preserveFocus: false, preview: false });
   }
 
+  private async handleCompareBranches(payload: PayloadFor<'compareBranches'>): Promise<void> {
+    const result = await this.repository.compareBranches(payload.repoRoot, payload.baseRef, payload.targetRef);
+    await this.postMessage({ type: 'branchCompareResult', payload: result });
+  }
+
+  private async handleListUndoEntries(payload: PayloadFor<'listUndoEntries'>): Promise<void> {
+    const entries = await this.repository.listUndoEntries(payload.repoRoot);
+    await this.postMessage({ type: 'undoEntries', payload: { entries } });
+  }
+
+  private async handleUndoTo(payload: PayloadFor<'undoTo'>): Promise<void> {
+    const confirmed = await vscode.window.showWarningMessage(
+      `Undo to ${payload.ref}? This performs a hard reset and can discard uncommitted changes.`,
+      { modal: true },
+      'Undo'
+    );
+    if (confirmed !== 'Undo') return;
+
+    await this.executeRepositoryAction('Undoing last operation...', async () => {
+      await this.repository.undoTo(payload.repoRoot, payload.ref);
+    });
+  }
+
   // Remote/PR helpers moved to GitGraphUtils.ts
 
   private getSelectedPaths(paths?: string[]): string[] | undefined {
@@ -754,6 +798,13 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
       sends.push(this.currentPanel.webview.postMessage(message));
     }
     await Promise.all(sends);
+  }
+
+  private isDirtyWorktreeRemovalError(message: string): boolean {
+    const normalized = message.toLowerCase();
+    return normalized.includes('contains modified or untracked files')
+      || normalized.includes('has uncommitted changes')
+      || normalized.includes('cannot remove: worktree contains');
   }
 
 

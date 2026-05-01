@@ -2,18 +2,23 @@
 
 ## 1.2.4 - 2026-05-01
 
-- **Fixed (ajustes-codex):** Discarding a newly staged file (`A`) now correctly removes it from index/worktree via `git rm --force`, instead of attempting `restore` against `HEAD`.
-- **Fixed (ajustes-codex):** Branch creation no longer suppresses real failures; when both create and switch fail, the error is propagated to the UI.
-- **Fixed (ajustes-codex):** Stash flows (`stash/apply/pop`) now stop follow-up steps when the main action fails, preventing misleading UI state updates.
-- **Fixed (ajustes-codex):** Symbolic remote branches such as `origin/HEAD` no longer appear as operable branches in the tree.
-- **Fixed (ajustes-codex):** The `RepoFlow: Commit Changes` command now handles commit errors with consistent user-facing feedback.
-- **Fixed (ajustes-codex):** `revealCommit` is now sent only when the target commit exists in the current snapshot, avoiding attempts to reveal commits that are not loaded.
+- **Fixed:** Discarding a newly staged file (`A`) now correctly removes it from index/worktree via `git rm --force`, instead of attempting `restore` against `HEAD`.
+- **Fixed:** Branch creation no longer suppresses real failures; when both create and switch fail, the error is propagated to the UI.
+- **Fixed:** Stash flows (`stash/apply/pop`) now stop follow-up steps when the main action fails, preventing misleading UI state updates.
+- **Fixed:** Symbolic remote branches such as `origin/HEAD` no longer appear as operable branches in the tree.
+- **Fixed:** The `RepoFlow: Commit Changes` command now handles commit errors with consistent user-facing feedback.
+- **Fixed:** `revealCommit` is now sent only when the target commit exists in the current snapshot, avoiding attempts to reveal commits that are not loaded.
 - **Fixed:** Git blame hover content now escapes commit metadata before rendering Markdown and only trusts the `repoFlow.revealCommit` command link, preventing untrusted commit messages, authors, or emails from injecting unexpected Markdown commands.
 - **Fixed:** Searching the graph for a hash-like value now resolves the commit directly instead of only filtering the currently loaded page, so older commits outside the initial limit can still be found.
 - **Fixed:** Checking out a remote branch from the Branches view now preserves the selected remote ref and avoids switching to a same-named local branch that tracks a different remote.
+- **Added:** Branch comparison flow with ahead/behind counts, commit lists on both sides, and changed-file summary (including additions/deletions) for selected base/target branches.
+- **Added:** "Undo Last Operation" flow based on reflog, allowing a reset to previous `HEAD@{n}` positions from both command and webview flows.
+- **Added:** Stash preview now opens native VS Code side-by-side diffs per file (with file picker and "open all" option), so stash changes can be reviewed before `apply`, `pop`, or `drop`.
+- **Changed:** Graph header actions were reorganized to reduce visual clutter by grouping secondary actions under a "More Actions" menu.
 
 ## Included commits - 1.2.4
 
+- [453a991](https://github.com/farigab/repoFlow/commit/453a991) - feat: add branch comparison and undo functionality with corresponding UI components
 - [fe4d80d](https://github.com/farigab/repoFlow/commit/fe4d80d) - feat: add error handling to commitChanges command and improve commit reveal logic
 - [b1981db](https://github.com/farigab/repoFlow/commit/b1981db) - feat: enhance discardFile method to handle staged additions and improve error handling in Git operations
 - [8ec60e3](https://github.com/farigab/repoFlow/commit/8ec60e3) - feat: enhance stash functionality and UI improvements

@@ -1,4 +1,5 @@
 export * from './Blame';
+export * from './BranchCompare';
 export * from './Branch';
 export * from './Commit';
 export * from './Diff';
@@ -6,5 +7,6 @@ export * from './GitRef';
 export * from './Graph';
 export * from './Repository';
 export * from './Stash';
+export * from './Undo';
 export * from './WorkingTree';
 export * from './Worktree';
