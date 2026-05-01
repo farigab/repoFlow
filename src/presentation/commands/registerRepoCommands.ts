@@ -186,27 +186,32 @@ export function registerRepoCommands(
       }
     }),
     vscode.commands.registerCommand('repoFlow.commitChanges', async () => {
-      const repoRoot = await repository.resolveRepositoryRoot();
-      const message = await vscode.window.showInputBox({
-        title: 'Commit Changes',
-        prompt: 'Commit message',
-        ignoreFocusOut: true
-      });
-      if (!message) return;
+      try {
+        const repoRoot = await repository.resolveRepositoryRoot();
+        const message = await vscode.window.showInputBox({
+          title: 'Commit Changes',
+          prompt: 'Commit message',
+          ignoreFocusOut: true
+        });
+        if (!message) return;
 
-      const choice = await vscode.window.showQuickPick([
-        { label: 'Commit', description: 'Create a new commit' },
-        { label: 'Amend Last Commit', description: 'Amend the most recent commit' }
-      ], {
-        title: 'Commit or Amend?',
-        placeHolder: 'Choose action',
-        ignoreFocusOut: true
-      });
-      if (!choice) return;
+        const choice = await vscode.window.showQuickPick([
+          { label: 'Commit', description: 'Create a new commit' },
+          { label: 'Amend Last Commit', description: 'Amend the most recent commit' }
+        ], {
+          title: 'Commit or Amend?',
+          placeHolder: 'Choose action',
+          ignoreFocusOut: true
+        });
+        if (!choice) return;
 
-      const amend = choice.label === 'Amend Last Commit';
-      await repository.commit(repoRoot, message.trim(), amend);
-      await graphViewProvider.refresh();
+        const amend = choice.label === 'Amend Last Commit';
+        await repository.commit(repoRoot, message.trim(), amend);
+        await graphViewProvider.refresh();
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        void vscode.window.showErrorMessage(`RepoFlow: ${msg}`);
+      }
     }),
     // Internal command — invoked from blame hover command URI
     vscode.commands.registerCommand('repoFlow.revealCommit', (commitHash: string) => {

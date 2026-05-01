@@ -90,7 +90,7 @@ export function parseBranchList(raw: string): BranchSummary[] {
         behind: behindMatch ? Number.parseInt(behindMatch[1], 10) : undefined
       } satisfies BranchSummary;
     })
-    .filter((branch) => branch.shortName !== 'HEAD');
+    .filter((branch) => branch.shortName !== 'HEAD' && !branch.shortName.endsWith('/HEAD'));
 }
 
 function parseStatusLine(line: string): WorkingTreeFile | undefined {

@@ -15,6 +15,7 @@ import type {
   RepoGitConfig,
   RepoSpecialState,
   StashEntry,
+  StashFile,
   WorkingTreeStatus,
   WorktreeEntry
 } from '../../core/models';
@@ -34,6 +35,7 @@ import {
 } from './GitParsers';
 
 const execFileAsync = promisify(execFile);
+const HASH_SEARCH_PATTERN = /^[0-9a-f]{4,40}$/i;
 
 function escapePathSpec(filePath: string): string {
   return filePath.replaceAll('\\', '/');
@@ -66,10 +68,40 @@ function parseStashList(raw: string): StashEntry[] {
     const branchMatch = /^(?:WIP on|On) ([^:]+):/.exec(subject);
     const branch = branchMatch ? branchMatch[1].trim() : '';
 
-    entries.push({ index, ref, message: subject, branch, date });
+    entries.push({ index, ref, message: subject, branch, date, files: [] });
   }
 
   return entries;
+}
+
+function parseStashFiles(raw: string): StashFile[] {
+  const parts = raw.split('\0').filter(Boolean);
+  const files: StashFile[] = [];
+
+  for (let index = 0; index < parts.length;) {
+    const rawStatus = parts[index++]?.trim();
+    if (!rawStatus) {
+      continue;
+    }
+
+    const status = rawStatus.replaceAll(/\d+/g, '') || rawStatus;
+
+    if (status.startsWith('R') || status.startsWith('C')) {
+      const originalPath = parts[index++];
+      const filePath = parts[index++];
+      if (filePath) {
+        files.push({ path: filePath, originalPath, status: status[0] });
+      }
+      continue;
+    }
+
+    const filePath = parts[index++];
+    if (filePath) {
+      files.push({ path: filePath, status: status[0] ?? status });
+    }
+  }
+
+  return files;
 }
 
 export class GitCliRepository implements GitRepository {
@@ -114,6 +146,8 @@ export class GitCliRepository implements GitRepository {
 
     const branchesPromise = this.getBranches(repoRoot);
     const localChangesPromise = this.getLocalChanges(repoRoot);
+    const search = filters.search?.trim();
+    const isHashSearch = search ? HASH_SEARCH_PATTERN.test(search) : false;
 
     const logArgs = [
       'log',
@@ -128,8 +162,8 @@ export class GitCliRepository implements GitRepository {
       logArgs.push(`--author=${filters.author}`);
     }
 
-    if (filters.search && !/^[0-9a-f]{4,40}$/i.test(filters.search)) {
-      logArgs.push(`--grep=${filters.search}`, '--regexp-ignore-case');
+    if (search && !isHashSearch) {
+      logArgs.push(`--grep=${search}`, '--regexp-ignore-case');
     }
 
     logArgs.push('--branches', '--tags');
@@ -138,7 +172,7 @@ export class GitCliRepository implements GitRepository {
     }
 
     const [rawLog, branches, localChanges, repoConfig, rawWorktrees] = await Promise.all([
-      this.runGit(repoRoot, logArgs),
+      isHashSearch ? this.getHashSearchLog(repoRoot, search ?? '', logArgs) : this.runGit(repoRoot, logArgs),
       branchesPromise,
       localChangesPromise,
       this.getRepoConfig(repoRoot),
@@ -149,16 +183,26 @@ export class GitCliRepository implements GitRepository {
       .filter((w) => !w.isMain)
       .map((w) => w.head);
 
+    const authorSearch = filters.author?.trim().toLowerCase();
     const filteredCommits = parseCommitLog(rawLog, this.hasDirtyChanges(localChanges)).filter((commit) => {
-      if (!filters.search) {
+      if (isHashSearch && authorSearch) {
+        const authorMatches =
+          commit.authorName.toLowerCase().includes(authorSearch) ||
+          commit.authorEmail.toLowerCase().includes(authorSearch);
+        if (!authorMatches) {
+          return false;
+        }
+      }
+
+      if (!search) {
         return true;
       }
 
-      const search = filters.search.toLowerCase();
+      const normalizedSearch = search.toLowerCase();
       return (
-        commit.hash.toLowerCase().includes(search) ||
-        commit.subject.toLowerCase().includes(search) ||
-        commit.authorName.toLowerCase().includes(search)
+        commit.hash.toLowerCase().includes(normalizedSearch) ||
+        commit.subject.toLowerCase().includes(normalizedSearch) ||
+        commit.authorName.toLowerCase().includes(normalizedSearch)
       );
     });
 
@@ -300,8 +344,10 @@ export class GitCliRepository implements GitRepository {
     this.graphCache.clear();
   }
 
-  public async discardFile(repoRoot: string, targetPath: string, tracked: boolean): Promise<void> {
-    if (tracked) {
+  public async discardFile(repoRoot: string, targetPath: string, tracked: boolean, stagedAddition = false): Promise<void> {
+    if (stagedAddition) {
+      await this.runGit(repoRoot, ['rm', '--force', '--', targetPath]);
+    } else if (tracked) {
       await this.runGit(repoRoot, ['restore', '--source=HEAD', '--staged', '--worktree', '--', targetPath]);
     } else {
       await this.runGit(repoRoot, ['clean', '-fd', '--', targetPath]);
@@ -333,19 +379,22 @@ export class GitCliRepository implements GitRepository {
         isRemoteRef = false;
       }
 
+      let createError: unknown;
       try {
         if (isRemoteRef) {
           await this.runGit(repoRoot, ['checkout', '--track', '-b', name, fromRef]);
         } else {
           await this.runGit(repoRoot, ['checkout', '-b', name, fromRef]);
         }
-      } catch {
+      } catch (error) {
+        createError = error;
         // If creation fails (e.g. branch already exists) attempt to
         // checkout the existing branch so the user ends up on it.
         try {
           await this.runGit(repoRoot, ['checkout', name]);
         } catch {
-          // swallow — best-effort
+          const message = createError instanceof Error ? createError.message : String(createError);
+          throw new Error(message);
         }
       }
     } else {
@@ -366,6 +415,13 @@ export class GitCliRepository implements GitRepository {
   }
 
   public async checkout(repoRoot: string, ref: string): Promise<void> {
+    const remoteBranch = this.parseRemoteBranchRef(ref);
+    if (remoteBranch) {
+      await this.checkoutRemoteBranch(repoRoot, remoteBranch.remoteRef, remoteBranch.localName);
+      this.graphCache.clear();
+      return;
+    }
+
     await this.runGit(repoRoot, ['checkout', ref]);
     this.graphCache.clear();
   }
@@ -473,27 +529,56 @@ export class GitCliRepository implements GitRepository {
       '--format=%gd\x1f%s\x1f%ci\x1e'
     ]).catch(() => '');
 
-    return parseStashList(raw);
+    const entries = parseStashList(raw);
+    return Promise.all(entries.map(async (entry) => ({
+      ...entry,
+      files: await this.listStashFiles(repoRoot, entry.ref).catch(() => [])
+    })));
   }
 
   public async stashChanges(repoRoot: string, message?: string, includeUntracked = false, paths?: string[]): Promise<void> {
     const args = ['stash', 'push'];
+    const selectedPaths = this.normalizePathList(paths);
+
     if (includeUntracked) args.push('--include-untracked');
     if (message?.trim()) args.push('-m', message.trim());
-    if (paths && paths.length > 0) {
-      args.push('--', ...paths);
+    if (selectedPaths.length > 0) {
+      args.push('--', ...selectedPaths);
     }
     await this.runGit(repoRoot, args);
     this.graphCache.clear();
   }
 
-  public async applyStash(repoRoot: string, ref: string): Promise<void> {
-    await this.runGit(repoRoot, ['stash', 'apply', ref]);
+  public async applyStash(repoRoot: string, ref: string, paths?: string[]): Promise<void> {
+    const selectedPaths = this.normalizePathList(paths);
+    if (selectedPaths.length === 0) {
+      await this.runGit(repoRoot, ['stash', 'apply', ref]);
+      this.graphCache.clear();
+      return;
+    }
+
+    const files = await this.listStashFiles(repoRoot, ref).catch(() => []);
+    await this.restoreStashPaths(repoRoot, ref, selectedPaths, files);
     this.graphCache.clear();
   }
 
-  public async popStash(repoRoot: string, ref: string): Promise<void> {
-    await this.runGit(repoRoot, ['stash', 'pop', ref]);
+  public async popStash(repoRoot: string, ref: string, paths?: string[]): Promise<void> {
+    const selectedPaths = this.normalizePathList(paths);
+    if (selectedPaths.length === 0) {
+      await this.runGit(repoRoot, ['stash', 'pop', ref]);
+      this.graphCache.clear();
+      return;
+    }
+
+    const files = await this.listStashFiles(repoRoot, ref).catch(() => []);
+    await this.restoreStashPaths(repoRoot, ref, selectedPaths, files);
+
+    const allPaths = new Set(files.map((file) => escapePathSpec(file.path)));
+    const selectedAllPaths = allPaths.size > 0 && selectedPaths.length >= allPaths.size && selectedPaths.every((filePath) => allPaths.has(filePath));
+    if (selectedAllPaths) {
+      await this.runGit(repoRoot, ['stash', 'drop', ref]);
+    }
+
     this.graphCache.clear();
   }
 
@@ -651,11 +736,118 @@ export class GitCliRepository implements GitRepository {
     }
   }
 
+  private async listStashFiles(repoRoot: string, ref: string): Promise<StashFile[]> {
+    const raw = await this.runGit(repoRoot, [
+      'stash',
+      'show',
+      '--include-untracked',
+      '--name-status',
+      '--find-renames',
+      '--find-copies',
+      '-z',
+      ref
+    ], { logErrors: false }).catch(() => '');
+
+    return parseStashFiles(raw);
+  }
+
+  private async restoreStashPaths(repoRoot: string, ref: string, paths: string[], files: StashFile[]): Promise<void> {
+    const fileByPath = new Map(files.map((file) => [escapePathSpec(file.path), file]));
+    const expandedPaths = new Set(paths);
+    for (const filePath of paths) {
+      const originalPath = fileByPath.get(filePath)?.originalPath;
+      if (originalPath) {
+        expandedPaths.add(escapePathSpec(originalPath));
+      }
+    }
+
+    for (const filePath of expandedPaths) {
+      const sources = [ref, `${ref}^3`];
+      let lastError: unknown;
+
+      for (const source of sources) {
+        try {
+          await this.runGit(repoRoot, ['restore', '--source', source, '--worktree', '--', filePath], { logErrors: false });
+          lastError = undefined;
+          break;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+
+      if (lastError) {
+        throw lastError;
+      }
+    }
+  }
+
+  private normalizePathList(paths?: string[]): string[] {
+    const normalized = new Set<string>();
+    for (const filePath of paths ?? []) {
+      const cleanPath = escapePathSpec(filePath);
+      if (cleanPath.trim()) {
+        normalized.add(cleanPath);
+      }
+    }
+    return [...normalized];
+  }
+
   private hasDirtyChanges(localChanges: WorkingTreeStatus): boolean {
     return localChanges.staged.length + localChanges.unstaged.length + localChanges.conflicted.length > 0;
   }
 
-  private async runGit(repoRoot: string, args: string[]): Promise<string> {
+  private async getHashSearchLog(repoRoot: string, query: string, fallbackLogArgs: string[]): Promise<string> {
+    const rawCommit = await this.runGit(repoRoot, [
+      'show',
+      '--no-patch',
+      '--date=iso-strict',
+      '--decorate=full',
+      '--format=%H%x1f%P%x1f%an%x1f%ae%x1f%ad%x1f%s%x1f%D%x1e',
+      `${query}^{commit}`
+    ], { logErrors: false }).catch(() => '');
+
+    return rawCommit || this.runGit(repoRoot, fallbackLogArgs);
+  }
+
+  private parseRemoteBranchRef(ref: string): { remoteRef: string; localName: string } | undefined {
+    const prefix = 'refs/remotes/';
+    if (!ref.startsWith(prefix)) {
+      return undefined;
+    }
+
+    const remoteRef = ref.slice(prefix.length);
+    const slashIndex = remoteRef.indexOf('/');
+    if (slashIndex === -1 || slashIndex === remoteRef.length - 1) {
+      return undefined;
+    }
+
+    return {
+      remoteRef,
+      localName: remoteRef.slice(slashIndex + 1)
+    };
+  }
+
+  private async checkoutRemoteBranch(repoRoot: string, remoteRef: string, localName: string): Promise<void> {
+    const localRef = `refs/heads/${localName}`;
+    const localExists = await this.runGit(repoRoot, ['show-ref', '--verify', '--quiet', localRef], { logErrors: false })
+      .then(() => true, () => false);
+
+    if (!localExists) {
+      await this.runGit(repoRoot, ['checkout', '--track', '-b', localName, `refs/remotes/${remoteRef}`]);
+      return;
+    }
+
+    const upstream = await this.runGit(repoRoot, ['rev-parse', '--abbrev-ref', `${localName}@{upstream}`], { logErrors: false })
+      .then((raw) => raw.trim(), () => '');
+
+    if (upstream !== remoteRef) {
+      throw new Error(`Local branch '${localName}' already exists and does not track '${remoteRef}'.`);
+    }
+
+    await this.runGit(repoRoot, ['checkout', localName]);
+  }
+
+  private async runGit(repoRoot: string, args: string[], options?: { logErrors?: boolean }): Promise<string> {
     this.output.appendLine(`git -C ${repoRoot} ${args.join(' ')}`);
 
     try {
@@ -668,8 +860,11 @@ export class GitCliRepository implements GitRepository {
       return result.stdout.trimEnd();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.output.appendLine(`[error] ${message}`);
+      if (options?.logErrors !== false) {
+        this.output.appendLine(`[error] ${message}`);
+      }
       throw new Error(message);
     }
   }
 }
+

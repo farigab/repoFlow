@@ -54,6 +54,12 @@ function truncate(text: string, maxLen: number): string {
   return text.length > maxLen ? text.slice(0, maxLen) + '\u2026' : text;
 }
 
+function escapeMarkdown(text: string): string {
+  return text
+    .replace(/\r?\n/g, ' ')
+    .replace(/[\\`*_{}\[\]()#+\-.!|>]/g, '\\$&');
+}
+
 function buildGitHubCommitUrl(remotes: RepoGitConfig['remotes'], commitHash: string): string | undefined {
   for (const remote of remotes) {
     const httpsMatch = /https?:\/\/github\.com\/([^/]+\/[^/.]+?)(?:\.git)?\/?$/.exec(remote.url);
@@ -330,7 +336,7 @@ export class GitBlameController implements vscode.Disposable {
     const linksLine = isUncommitted ? '' : this.buildLinksLine(entry, config);
     const headerLine = isUncommitted
       ? '$(edit) **Uncommitted Changes**'
-      : `\`${entry.commitHash.slice(0, 7)}\` **${entry.commitMessage}**`;
+      : `\`${entry.commitHash.slice(0, 7)}\` **${escapeMarkdown(entry.commitMessage)}**`;
 
     const lineLength = document.lineAt(position.line).text.length;
     const range = new vscode.Range(position.line, 0, position.line, lineLength);
@@ -340,28 +346,25 @@ export class GitBlameController implements vscode.Disposable {
     // mtime at blame time), so we skip the date / stats / links sections.
     if (isUncommitted) {
       const md = new vscode.MarkdownString(headerLine, /* supportThemeIcons */ true);
-      md.supportHtml = true;
-      md.isTrusted = true;
       return new vscode.Hover(md, range);
     }
 
-    const dateLine = `$(calendar) *${formatAbsoluteDate(entry.committedAt)}*`;
+    const dateLine = `$(calendar) *${escapeMarkdown(formatAbsoluteDate(entry.committedAt))}*`;
 
     const lines: string[] = [
       headerLine,
       '',
-      `$(account) **${entry.authorName}**`,
+      `$(account) **${escapeMarkdown(entry.authorName)}**`,
     ];
 
     if (entry.authorEmail) {
-      lines.push('', `$(mail) *${entry.authorEmail}*`);
+      lines.push('', `$(mail) *${escapeMarkdown(entry.authorEmail)}*`);
     }
 
     lines.push('', dateLine, '', statsLine, '', linksLine);
 
     const md = new vscode.MarkdownString(lines.join('\n'), /* supportThemeIcons */ true);
-    md.supportHtml = true;
-    md.isTrusted = true;
+    md.isTrusted = { enabledCommands: ['repoFlow.revealCommit'] };
     return new vscode.Hover(md, range);
   }
 
@@ -380,10 +383,10 @@ export class GitBlameController implements vscode.Disposable {
     if (isUncommitted) return '$(circle-slash) Not Committed Yet';
     if (!stats) return '$(loading~spin) Loading stats\u2026';
 
-    const ins = `<span style="color:#4ec9b0;">+${stats.insertions} insertion${stats.insertions === 1 ? '' : 's'}</span>`;
-    const del = `<span style="color:#f14c4c;">-${stats.deletions} deletion${stats.deletions === 1 ? '' : 's'}</span>`;
+    const ins = `+${stats.insertions} insertion${stats.insertions === 1 ? '' : 's'}`;
+    const del = `-${stats.deletions} deletion${stats.deletions === 1 ? '' : 's'}`;
     const files = `${stats.filesChanged} file${stats.filesChanged === 1 ? '' : 's'} changed`;
-    return [ins, del, files].join('&ensp;');
+    return [ins, del, files].join('  ');
   }
 
   // ── cached accessors ─────────────────────────────────────────────────────

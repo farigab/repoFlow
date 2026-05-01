@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.2.4 - 2026-05-01
+
+- **Fixed (ajustes-codex):** Discarding a newly staged file (`A`) now correctly removes it from index/worktree via `git rm --force`, instead of attempting `restore` against `HEAD`.
+- **Fixed (ajustes-codex):** Branch creation no longer suppresses real failures; when both create and switch fail, the error is propagated to the UI.
+- **Fixed (ajustes-codex):** Stash flows (`stash/apply/pop`) now stop follow-up steps when the main action fails, preventing misleading UI state updates.
+- **Fixed (ajustes-codex):** Symbolic remote branches such as `origin/HEAD` no longer appear as operable branches in the tree.
+- **Fixed (ajustes-codex):** The `RepoFlow: Commit Changes` command now handles commit errors with consistent user-facing feedback.
+- **Fixed (ajustes-codex):** `revealCommit` is now sent only when the target commit exists in the current snapshot, avoiding attempts to reveal commits that are not loaded.
+- **Fixed:** Git blame hover content now escapes commit metadata before rendering Markdown and only trusts the `repoFlow.revealCommit` command link, preventing untrusted commit messages, authors, or emails from injecting unexpected Markdown commands.
+- **Fixed:** Searching the graph for a hash-like value now resolves the commit directly instead of only filtering the currently loaded page, so older commits outside the initial limit can still be found.
+- **Fixed:** Checking out a remote branch from the Branches view now preserves the selected remote ref and avoids switching to a same-named local branch that tracks a different remote.
+
+## Included commits - 1.2.4
+
+- [fe4d80d](https://github.com/farigab/repoFlow/commit/fe4d80d) - feat: add error handling to commitChanges command and improve commit reveal logic
+- [b1981db](https://github.com/farigab/repoFlow/commit/b1981db) - feat: enhance discardFile method to handle staged additions and improve error handling in Git operations
+- [8ec60e3](https://github.com/farigab/repoFlow/commit/8ec60e3) - feat: enhance stash functionality and UI improvements
+- [64291ef](https://github.com/farigab/repoFlow/commit/64291ef) - fix: update changelog with new fixes for Git blame, commit search, and remote branch checkout
+- [4b3301f](https://github.com/farigab/repoFlow/commit/4b3301f) - fix: enhance branch checkout handling and error messaging
+
 ## 1.2.3 - 2026-04-23
 
 - **Fixed:** Prevent passing a stray pathspec `.` to `git merge` when merging from the Branches view. The extension now sanitizes branch names and rejects obviously invalid inputs before invoking Git, avoiding errors like `git -C <repo> merge teste .`.
