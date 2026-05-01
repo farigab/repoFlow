@@ -38,6 +38,7 @@ export function WorktreeModal({ repoRoot, entries, branches, busy, worktreeError
     const [newBranchName, setNewBranchName] = useState('');
     const [commitHash, setCommitHash] = useState('');
     const [worktreePath, setWorktreePath] = useState('');
+    const [isPathManuallyEdited, setIsPathManuallyEdited] = useState(false);
     const [pendingRemovePath, setPendingRemovePath] = useState<string | null>(null);
     const [renamingPath, setRenamingPath] = useState<string | null>(null);
     const [renameValue, setRenameValue] = useState('');
@@ -52,17 +53,20 @@ export function WorktreeModal({ repoRoot, entries, branches, busy, worktreeError
         if (local.length > 0 && !selectedBranch) {
             const first = local[0].shortName;
             setSelectedBranch(first);
-            if (!worktreePath) setWorktreePath(buildDefaultPath(repoRoot, first));
+            if (!worktreePath) {
+                setWorktreePath(buildDefaultPath(repoRoot, first));
+                setIsPathManuallyEdited(false);
+            }
         }
     }, [branches, selectedBranch, worktreePath, repoRoot]);
 
     // Update path suggestion when the effective branch changes (not for detached mode)
     const effectiveBranch = addMode === 'existing' ? selectedBranch : addMode === 'new' ? newBranchName.trim() : '';
     useEffect(() => {
-        if (effectiveBranch) {
+        if (effectiveBranch && !isPathManuallyEdited) {
             setWorktreePath(buildDefaultPath(repoRoot, effectiveBranch));
         }
-    }, [effectiveBranch, repoRoot]);
+    }, [effectiveBranch, repoRoot, isPathManuallyEdited]);
 
     // Focus rename input when it appears
     useEffect(() => {
@@ -113,6 +117,11 @@ export function WorktreeModal({ repoRoot, entries, branches, busy, worktreeError
 
     const handleCopyPath = (path: string) => {
         vscode.postMessage({ type: 'copyWorktreePath', payload: { path } });
+    };
+
+    const handleModeChange = (mode: AddMode) => {
+        setAddMode(mode);
+        setIsPathManuallyEdited(false);
     };
 
     const handleToggleLock = (path: string, locked: boolean) => {
@@ -353,15 +362,15 @@ export function WorktreeModal({ repoRoot, entries, branches, busy, worktreeError
 
                     <div className="worktree-add-form__mode" role="group" aria-label="Branch mode">
                         <label className="worktree-radio">
-                            <input type="radio" name="addMode" value="existing" checked={addMode === 'existing'} onChange={() => setAddMode('existing')} />
+                            <input type="radio" name="addMode" value="existing" checked={addMode === 'existing'} onChange={() => handleModeChange('existing')} />
                             Existing branch
                         </label>
                         <label className="worktree-radio">
-                            <input type="radio" name="addMode" value="new" checked={addMode === 'new'} onChange={() => setAddMode('new')} />
+                            <input type="radio" name="addMode" value="new" checked={addMode === 'new'} onChange={() => handleModeChange('new')} />
                             New branch
                         </label>
                         <label className="worktree-radio">
-                            <input type="radio" name="addMode" value="detached" checked={addMode === 'detached'} onChange={() => setAddMode('detached')} />
+                            <input type="radio" name="addMode" value="detached" checked={addMode === 'detached'} onChange={() => handleModeChange('detached')} />
                             Commit hash
                         </label>
                     </div>
@@ -407,7 +416,10 @@ export function WorktreeModal({ repoRoot, entries, branches, busy, worktreeError
                         type="text"
                         placeholder="Absolute path for the new worktree…"
                         value={worktreePath}
-                        onChange={(e) => setWorktreePath(e.target.value)}
+                        onChange={(e) => {
+                            setWorktreePath(e.target.value);
+                            setIsPathManuallyEdited(true);
+                        }}
                         onKeyDown={(e) => { if (e.key === 'Enter' && addBranchValid) handleAdd(); }}
                         disabled={busy}
                         aria-label="Worktree path"

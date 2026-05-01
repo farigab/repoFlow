@@ -604,12 +604,16 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       this.output.appendLine(`[worktree-remove] ${msg}`);
-      await this.postMessage({ type: 'worktreeError', payload: { message: msg, path: worktreePath, canForce: !force } });
+      await this.postMessage({
+        type: 'worktreeError',
+        payload: { message: msg, path: worktreePath, canForce: !force && this.isDirtyWorktreeRemovalError(msg) }
+      });
     }
   }
 
   private async handleOpenWorktreeInWindow(payload: PayloadFor<'openWorktreeInWindow'>): Promise<void> {
     await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(payload.path), { forceNewWindow: true });
+    await this.postNotification('info', 'Worktree opened in a new window.');
   }
 
   private async handleRevealWorktreeInOs(payload: PayloadFor<'revealWorktreeInOs'>): Promise<void> {
@@ -618,6 +622,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
   private async handleCopyWorktreePath(payload: PayloadFor<'copyWorktreePath'>): Promise<void> {
     await vscode.env.clipboard.writeText(payload.path);
+    await this.postNotification('info', 'Worktree path copied to clipboard.');
   }
 
   private async handleLockWorktree(payload: PayloadFor<'lockWorktree'>): Promise<void> {
@@ -793,6 +798,13 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
       sends.push(this.currentPanel.webview.postMessage(message));
     }
     await Promise.all(sends);
+  }
+
+  private isDirtyWorktreeRemovalError(message: string): boolean {
+    const normalized = message.toLowerCase();
+    return normalized.includes('contains modified or untracked files')
+      || normalized.includes('has uncommitted changes')
+      || normalized.includes('cannot remove: worktree contains');
   }
 
 

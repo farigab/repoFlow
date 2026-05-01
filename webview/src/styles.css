@@ -2717,7 +2717,7 @@ mark.find-highlight {
   gap: 0.55rem;
   padding: 0.85rem 1rem 1rem;
   border-top: 1px solid var(--panel-border);
-  background: color-mix(in srgb, var(--panel-bg) 60%, transparent 40%);
+  background: color-mix(in srgb, var(--panel) 60%, transparent 40%);
 }
 
 .worktree-add-form__title {

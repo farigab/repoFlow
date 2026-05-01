@@ -47,12 +47,12 @@ async function pickRepoAction(
   }
   items.push(
     { label: '$(sync) Fetch', description: 'Update remote refs', action: 'fetch' },
-    { label: '', kind: vscode.QuickPickItemKind.Separator, description: '', action: '' },
-    { label: '$(git-compare) Compare Branches...', description: '', action: 'compareBranches' },
-    { label: '$(history) Undo Last Operation...', description: '', action: 'undoLastOperation' },
-    { label: '', kind: vscode.QuickPickItemKind.Separator, description: '', action: '' },
     { label: '$(git-branch) Open Graph', description: '', action: 'openGraph' },
-    { label: '$(git-branch) Create Branch...', description: '', action: 'createBranch' }
+    { label: '', kind: vscode.QuickPickItemKind.Separator, description: '', action: '' },
+    { label: '$(git-branch) Create Branch...', description: '', action: 'createBranch' },
+    { label: '$(git-compare) Compare Branches...', description: '', action: 'compareBranches' },
+    { label: '', kind: vscode.QuickPickItemKind.Separator, description: '', action: '' },
+    { label: '$(history) Undo Last Operation...', description: '', action: 'undoLastOperation' }
   );
 
   const choice = await vscode.window.showQuickPick(items, {
