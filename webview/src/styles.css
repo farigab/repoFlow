@@ -743,18 +743,49 @@ mark.find-highlight {
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  width: 100%;
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 600;
   line-height: 1.4;
   user-select: none;
-  padding: 0.1rem 0 0.05rem;
+  padding: 0.18rem 0.35rem;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+}
+
+.tree-folder:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  border-color: var(--panel-border);
+}
+
+.tree-folder:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
 }
 
 .tree-folder .codicon {
+  flex-shrink: 0;
+}
+
+.tree-folder__icon {
   color: var(--vscode-symbolIcon-folderForeground, var(--warning));
   font-size: 0.95rem;
-  flex-shrink: 0;
+}
+
+.tree-folder__chevron {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.tree-folder span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .file-card .codicon {
