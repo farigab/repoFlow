@@ -12,6 +12,7 @@ import type {
 } from '../models';
 
 export interface GitQueryPort {
+  clearTransientCaches(): void;
   resolveRepositoryRoot(preferredPath?: string): Promise<string>;
   getGraph(filters: GraphFilters): Promise<GraphSnapshot>;
   getCommitDetail(repoRoot: string, commitHash: string): Promise<CommitDetail>;
