@@ -65,7 +65,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.onDidChangeVisibility(() => {
       if (webviewView.visible) {
-        void this.refresh();
+        this.onRepositoryChanged?.();
       }
     }, undefined, this.viewDisposables);
 
@@ -114,7 +114,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
     panel.onDidChangeViewState(() => {
       if (panel.visible) {
-        void this.refresh();
+        this.onRepositoryChanged?.();
       }
     }, undefined, this.panelDisposables);
 
