@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { CommitDetail, CommitFileChange } from '../../../src/core/models';
 
 interface CommitDetailsProps {
@@ -52,33 +52,40 @@ interface FolderGroupProps {
     onOpenDiff: (file: CommitFileChange, detail: CommitDetail) => void;
 }
 
-function FolderGroup({ labelParts, node, depth, detail, onOpenDiff }: FolderGroupProps) {
-    // Path compression: collapse single-child-dir nodes that have no direct files
-    if (node.files.length === 0 && node.children.size === 1) {
-        const [childName, childNode] = [...node.children.entries()][0];
-        return (
-            <FolderGroup
-                labelParts={[...labelParts, childName]}
-                node={childNode}
-                depth={depth}
-                detail={detail}
-                onOpenDiff={onOpenDiff}
-            />
-        );
+function compressFolder(labelParts: string[], node: DirNode): { labelParts: string[]; node: DirNode } {
+    let currentLabelParts = labelParts;
+    let currentNode = node;
+
+    while (currentNode.files.length === 0 && currentNode.children.size === 1) {
+        const [childName, childNode] = [...currentNode.children.entries()][0];
+        currentLabelParts = [...currentLabelParts, childName];
+        currentNode = childNode;
     }
 
-    const label = labelParts.join(' / ');
+    return { labelParts: currentLabelParts, node: currentNode };
+}
+
+function FolderGroup({ labelParts, node, depth, detail, onOpenDiff }: Readonly<FolderGroupProps>) {
+    const compressed = compressFolder(labelParts, node);
+    const label = compressed.labelParts.join(' / ');
     const groupClass = depth === 0 ? 'tree-group' : 'tree-subgroup';
+    const [expanded, setExpanded] = useState(true);
 
     return (
         <div className={groupClass}>
             {label && (
-                <span className="tree-folder">
-                    <i className="codicon codicon-folder" aria-hidden="true" />
-                    {label}
-                </span>
+                <button
+                    type="button"
+                    className="tree-folder"
+                    onClick={() => setExpanded((value) => !value)}
+                    aria-expanded={expanded}
+                >
+                    <i className={`codicon ${expanded ? 'codicon-chevron-down' : 'codicon-chevron-right'} tree-folder__chevron`} aria-hidden="true" />
+                    <i className={`codicon ${expanded ? 'codicon-folder-opened' : 'codicon-folder'} tree-folder__icon`} aria-hidden="true" />
+                    <span>{label}</span>
+                </button>
             )}
-            {node.files.map((file) => {
+            {expanded ? compressed.node.files.map((file) => {
                 const filename = file.path.split('/').at(-1) ?? file.path;
                 const origFilename = file.originalPath ? (file.originalPath.split('/').at(-1) ?? file.originalPath) : null;
                 return (
@@ -100,22 +107,22 @@ function FolderGroup({ labelParts, node, depth, detail, onOpenDiff }: FolderGrou
                         </span>
                     </button>
                 );
-            })}
-            {[...node.children.entries()].map(([name, child]) => (
+            }) : null}
+            {expanded ? [...compressed.node.children.entries()].map(([name, child]) => (
                 <FolderGroup
-                    key={name}
+                    key={`${label}/${name}`}
                     labelParts={[name]}
                     node={child}
                     depth={depth + 1}
                     detail={detail}
                     onOpenDiff={onOpenDiff}
                 />
-            ))}
+            )) : null}
         </div>
     );
 }
 
-export function CommitDetails({ detail, onOpenDiff, onClose }: CommitDetailsProps) {
+export function CommitDetails({ detail, onOpenDiff, onClose }: Readonly<CommitDetailsProps>) {
     const tree = useMemo(() => detail ? buildTree(detail.files) : null, [detail]);
 
     if (!detail || !tree) {
@@ -149,7 +156,7 @@ export function CommitDetails({ detail, onOpenDiff, onClose }: CommitDetailsProp
                         <span>Author</span>
                         <strong>
                             {detail.authorName}
-                            <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--muted)', fontWeight: 400 }}>
+                            <span className="details__author-email">
                                 {detail.authorEmail}
                             </span>
                         </strong>
@@ -170,6 +177,21 @@ export function CommitDetails({ detail, onOpenDiff, onClose }: CommitDetailsProp
             </header>
 
             {detail.body ? <pre className="details__body">{detail.body}</pre> : null}
+
+            <div className="details__file-summary" aria-label="Commit file summary">
+                <span className="details__file-summary-item details__file-summary-item--add">
+                    <i className="codicon codicon-add" aria-hidden="true" />
+                    {detail.stats.additions} additions
+                </span>
+                <span className="details__file-summary-item details__file-summary-item--del">
+                    <i className="codicon codicon-remove" aria-hidden="true" />
+                    {detail.stats.deletions} deletions
+                </span>
+                <span className="details__file-summary-item">
+                    <i className="codicon codicon-files" aria-hidden="true" />
+                    {detail.stats.filesChanged} files
+                </span>
+            </div>
 
             <div className="details__files">
                 {tree.files.map((file) => {
@@ -192,7 +214,7 @@ export function CommitDetails({ detail, onOpenDiff, onClose }: CommitDetailsProp
                 })}
                 {[...tree.children.entries()].map(([name, child]) => (
                     <FolderGroup
-                        key={name}
+                        key={`${detail.hash}-${name}`}
                         labelParts={[name]}
                         node={child}
                         depth={0}

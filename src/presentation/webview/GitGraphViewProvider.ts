@@ -166,10 +166,15 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
         this.repoStatusBar.tooltip = buildRepoSummary(status);
       }
 
-      if (this.pendingRevealHash) {
+      const revealedCommitHash = this.pendingRevealHash;
+      const canRevealCommit = revealedCommitHash
+        ? snapshot.rows.some((r) => r.commit.hash === revealedCommitHash)
+        : false;
+
+      if (revealedCommitHash && canRevealCommit) {
         // Send revealCommit BEFORE commitDetail so the webview can prime
         // requestedCommitHashRef before the detail message arrives.
-        await this.postMessage({ type: 'revealCommit', payload: { commitHash: this.pendingRevealHash } });
+        await this.postMessage({ type: 'revealCommit', payload: { commitHash: revealedCommitHash } });
         this.pendingRevealHash = undefined;
       }
 
@@ -423,8 +428,9 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     );
     if (confirmed !== 'Discard') return;
     const tracked = payload.file.indexStatus !== '?' && payload.file.workTreeStatus !== '?';
+    const stagedAddition = payload.file.indexStatus === 'A';
     await this.executeRepositoryAction('Discarding changes...', async () => {
-      await this.repository.discardFile(payload.repoRoot, payload.file.path, tracked);
+      await this.repository.discardFile(payload.repoRoot, payload.file.path, tracked, stagedAddition);
     });
   }
 
@@ -492,25 +498,50 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleStashChanges(payload: PayloadFor<'stashChanges'>): Promise<void> {
-    await this.executeRepositoryAction('Stashing changes...', async () => {
-      await this.repository.stashChanges(payload.repoRoot, payload.message, payload.includeUntracked);
-    });
+    const selectedPaths = payload.paths ? this.getSelectedPaths(payload.paths) ?? [] : undefined;
+    if (selectedPaths !== undefined && selectedPaths.length === 0) {
+      await this.postNotification('error', 'Select at least one file to stash.');
+      return;
+    }
+
+    const ok = await this.executeRepositoryAction('Stashing selected files...', async () => {
+      await this.repository.stashChanges(payload.repoRoot, payload.message, payload.includeUntracked, selectedPaths);
+    }, selectedPaths ? 'Selected files stashed.' : undefined);
+    if (!ok) return;
     const entries = await this.repository.listStashes(payload.repoRoot);
     await this.postMessage({ type: 'stashList', payload: { entries } });
   }
 
   private async handleApplyStash(payload: PayloadFor<'applyStash'>): Promise<void> {
-    await this.executeRepositoryAction('Applying stash...', async () => {
-      await this.repository.applyStash(payload.repoRoot, payload.ref);
-    });
+    const selectedPaths = payload.paths ? this.getSelectedPaths(payload.paths) ?? [] : undefined;
+    if (selectedPaths !== undefined && selectedPaths.length === 0) {
+      await this.postNotification('error', 'Select at least one file to apply.');
+      return;
+    }
+
+    const ok = await this.executeRepositoryAction(selectedPaths ? 'Applying selected stash files...' : 'Applying stash...', async () => {
+      await this.repository.applyStash(payload.repoRoot, payload.ref, selectedPaths);
+    }, selectedPaths ? 'Selected stash files applied.' : undefined);
+    if (!ok) return;
     const entries = await this.repository.listStashes(payload.repoRoot);
     await this.postMessage({ type: 'stashList', payload: { entries } });
   }
 
   private async handlePopStash(payload: PayloadFor<'popStash'>): Promise<void> {
-    await this.executeRepositoryAction('Popping stash...', async () => {
-      await this.repository.popStash(payload.repoRoot, payload.ref);
-    });
+    const selectedPaths = payload.paths ? this.getSelectedPaths(payload.paths) ?? [] : undefined;
+    if (selectedPaths !== undefined && selectedPaths.length === 0) {
+      await this.postNotification('error', 'Select at least one file to pop.');
+      return;
+    }
+
+    const entriesBefore = selectedPaths ? await this.repository.listStashes(payload.repoRoot) : [];
+    const selectedStash = entriesBefore.find((entry) => entry.ref === payload.ref);
+    const isPartialPop = Boolean(selectedPaths && selectedStash?.files.length && selectedPaths.length < selectedStash.files.length);
+
+    const ok = await this.executeRepositoryAction(selectedPaths ? 'Restoring selected stash files...' : 'Popping stash...', async () => {
+      await this.repository.popStash(payload.repoRoot, payload.ref, selectedPaths);
+    }, isPartialPop ? 'Selected files restored. The stash was kept because only part of it was selected.' : undefined);
+    if (!ok) return;
     const entries = await this.repository.listStashes(payload.repoRoot);
     await this.postMessage({ type: 'stashList', payload: { entries } });
   }
@@ -674,16 +705,28 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
   // Remote/PR helpers moved to GitGraphUtils.ts
 
-  private async executeRepositoryAction(label: string, action: () => Promise<void>): Promise<void> {
-    await this.withBusy(label, async () => {
-      await action();
-      await this.refresh();
-      await this.postNotification('info', 'Operation completed successfully.');
-    }).catch(async (error) => {
+  private getSelectedPaths(paths?: string[]): string[] | undefined {
+    if (!paths) {
+      return undefined;
+    }
+
+    return paths.filter((filePath) => filePath.trim().length > 0);
+  }
+
+  private async executeRepositoryAction(label: string, action: () => Promise<void>, successMessage = 'Operation completed successfully.'): Promise<boolean> {
+    try {
+      await this.withBusy(label, async () => {
+        await action();
+        await this.refresh();
+        await this.postNotification('info', successMessage);
+      });
+      return true;
+    } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.output.appendLine(`[ui-error] ${message}`);
       await this.postNotification('error', message);
-    });
+      return false;
+    }
   }
 
   private async withBusy(label: string, action: () => Promise<void>): Promise<void> {

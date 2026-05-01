@@ -51,8 +51,11 @@ export function CreatePRModal({ snapshot, onClose }: CreatePRModalProps) {
     return (
         <div className="modal-backdrop" onClick={handleBackdropClick}>
             <div className="modal" role="dialog" aria-modal="true" aria-label="Create Pull Request">
-                <header className="modal__header">
-                    <h2>Create Pull Request</h2>
+                <header className="modal__header modal__header--hero">
+                    <div className="modal__title-group">
+                        <span className="modal__eyebrow">Repository tools</span>
+                        <h2>Create Pull Request</h2>
+                    </div>
                     <button type="button" className="modal__close" onClick={onClose} aria-label="Close">
                         <i className="codicon codicon-close" aria-hidden="true" />
                     </button>

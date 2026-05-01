@@ -27,9 +27,9 @@ export type WebviewToExtensionMessage =
   | { type: 'setRemoteUrl'; payload: { repoRoot: string; remoteName: string; url: string } }
   | { type: 'openPullRequest'; payload: { repoRoot: string; sourceBranch: string; targetBranch: string; title: string; description: string } }
   | { type: 'listStashes'; payload: { repoRoot: string } }
-  | { type: 'stashChanges'; payload: { repoRoot: string; message?: string; includeUntracked: boolean } }
-  | { type: 'applyStash'; payload: { repoRoot: string; ref: string } }
-  | { type: 'popStash'; payload: { repoRoot: string; ref: string } }
+  | { type: 'stashChanges'; payload: { repoRoot: string; message?: string; includeUntracked: boolean; paths?: string[] } }
+  | { type: 'applyStash'; payload: { repoRoot: string; ref: string; paths?: string[] } }
+  | { type: 'popStash'; payload: { repoRoot: string; ref: string; paths?: string[] } }
   | { type: 'dropStash'; payload: { repoRoot: string; ref: string } }
   | { type: 'listWorktrees'; payload: { repoRoot: string } }
   | { type: 'addWorktree'; payload: { repoRoot: string; branch: string; createNew: boolean; worktreePath: string } }

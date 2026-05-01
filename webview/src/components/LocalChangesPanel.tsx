@@ -89,8 +89,9 @@ export function LocalChangesPanel({ status, onStage, onUnstage, onDiscard, onCom
                         )}
                     </div>
                 </div>
-                <button type="button" onClick={onCommit} disabled={status.staged.length === 0}>
-                    Commit Staged
+                <button type="button" className="changes__commit-btn" onClick={onCommit} disabled={status.staged.length === 0}>
+                    <i className="codicon codicon-check" aria-hidden="true" />
+                    Commit
                 </button>
             </header>
 
@@ -114,6 +115,12 @@ export function LocalChangesPanel({ status, onStage, onUnstage, onDiscard, onCom
             <FileSection title="Conflicts" sectionType="conflicts" files={status.conflicted} onPrimaryAction={onStage} primaryLabel="Stage" onDiscard={onDiscard} />
             <FileSection title="Staged" sectionType="staged" files={status.staged} onPrimaryAction={onUnstage} primaryLabel="Unstage" onDiscard={onDiscard} />
             <FileSection title="Unstaged" sectionType="unstaged" files={status.unstaged} onPrimaryAction={onStage} primaryLabel="Stage" onDiscard={onDiscard} />
+            {totalChanges === 0 ? (
+                <div className="changes__empty">
+                    <i className="codicon codicon-check" aria-hidden="true" />
+                    <span>Working tree clean</span>
+                </div>
+            ) : null}
         </section>
     );
 }
