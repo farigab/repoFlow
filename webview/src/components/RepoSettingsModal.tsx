@@ -66,8 +66,11 @@ export function RepoSettingsModal({ snapshot, filters, onChangeFilters, onClose 
     return (
         <div className="modal-backdrop" onClick={handleBackdropClick}>
             <div className="modal" role="dialog" aria-modal="true" aria-label="Repository Settings">
-                <header className="modal__header">
-                    <h2>Repository Settings</h2>
+                <header className="modal__header modal__header--hero">
+                    <div className="modal__title-group">
+                        <span className="modal__eyebrow">{repoName}</span>
+                        <h2>Repository Settings</h2>
+                    </div>
                     <button type="button" className="modal__close" onClick={onClose} aria-label="Close">
                         <i className="codicon codicon-close" aria-hidden="true" />
                     </button>

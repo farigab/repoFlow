@@ -149,7 +149,7 @@ export function CommitDetails({ detail, onOpenDiff, onClose }: CommitDetailsProp
                         <span>Author</span>
                         <strong>
                             {detail.authorName}
-                            <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--muted)', fontWeight: 400 }}>
+                            <span className="details__author-email">
                                 {detail.authorEmail}
                             </span>
                         </strong>
@@ -170,6 +170,21 @@ export function CommitDetails({ detail, onOpenDiff, onClose }: CommitDetailsProp
             </header>
 
             {detail.body ? <pre className="details__body">{detail.body}</pre> : null}
+
+            <div className="details__file-summary" aria-label="Commit file summary">
+                <span className="details__file-summary-item details__file-summary-item--add">
+                    <i className="codicon codicon-add" aria-hidden="true" />
+                    {detail.stats.additions} additions
+                </span>
+                <span className="details__file-summary-item details__file-summary-item--del">
+                    <i className="codicon codicon-remove" aria-hidden="true" />
+                    {detail.stats.deletions} deletions
+                </span>
+                <span className="details__file-summary-item">
+                    <i className="codicon codicon-files" aria-hidden="true" />
+                    {detail.stats.filesChanged} files
+                </span>
+            </div>
 
             <div className="details__files">
                 {tree.files.map((file) => {
