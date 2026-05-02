@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import type { GitFetchCoordinator } from '../../application/fetch/GitFetchCoordinator';
 import type { GitRepository } from '../../core/ports/GitRepository';
 
 const STARTUP_DELAY_MS = 3_000;
@@ -14,13 +15,12 @@ interface AutoFetchConfig {
 
 export class GitAutoFetchService implements vscode.Disposable {
   private timer: ReturnType<typeof setTimeout> | undefined;
-  private inFlight = false;
   private disposed = false;
-  private lastFetchByRepo = new Map<string, number>();
   private readonly disposables: vscode.Disposable[] = [];
 
   public constructor(
     private readonly repository: GitRepository,
+    private readonly fetchCoordinator: GitFetchCoordinator,
     private readonly onRepositoryChanged: () => void,
     private readonly output: vscode.OutputChannel
   ) { }
@@ -52,7 +52,6 @@ export class GitAutoFetchService implements vscode.Disposable {
       disposable.dispose();
     }
     this.disposables.length = 0;
-    this.lastFetchByRepo.clear();
   }
 
   private restart(): void {
@@ -79,24 +78,18 @@ export class GitAutoFetchService implements vscode.Disposable {
       return;
     }
 
-    if (this.inFlight) {
-      this.schedule(config.intervalMs);
-      return;
-    }
-
-    this.inFlight = true;
     let nextDelay = config.intervalMs;
 
     try {
       const repoRoot = await this.repository.resolveRepositoryRoot();
-      const now = Date.now();
-      const lastFetchAt = this.lastFetchByRepo.get(repoRoot) ?? 0;
-
-      if (now - lastFetchAt >= config.intervalMs) {
-        const repoConfig = await this.repository.getRepoConfig(repoRoot);
-        if (repoConfig.remotes.length > 0) {
-          await this.repository.fetch(repoRoot, { quiet: true });
-          this.lastFetchByRepo.set(repoRoot, Date.now());
+      const repoConfig = await this.repository.getRepoConfig(repoRoot);
+      if (repoConfig.remotes.length > 0) {
+        const result = await this.fetchCoordinator.fetch(repoRoot, {
+          quiet: true,
+          reason: 'auto-fetch',
+          minimumIntervalMs: config.intervalMs
+        });
+        if (result.status === 'fetched') {
           this.onRepositoryChanged();
         }
       }
@@ -105,7 +98,6 @@ export class GitAutoFetchService implements vscode.Disposable {
       const message = error instanceof Error ? error.message : String(error);
       this.output.appendLine(`[auto-fetch] ${message}`);
     } finally {
-      this.inFlight = false;
       this.schedule(nextDelay);
     }
   }

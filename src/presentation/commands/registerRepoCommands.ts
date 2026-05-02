@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { DUPLICATE_FETCH_WINDOW_MS, type GitFetchCoordinator } from '../../application/fetch/GitFetchCoordinator';
 import type { GitRepository } from '../../core/ports/GitRepository';
 import type { GitGraphViewProvider } from '../webview/GitGraphViewProvider';
 
@@ -19,6 +20,7 @@ const SPECIAL_LABEL: Record<string, string> = {
 
 async function pickRepoAction(
   repository: GitRepository,
+  fetchCoordinator: GitFetchCoordinator,
   graphViewProvider: GitGraphViewProvider,
   onRepositoryChanged: () => void
 ): Promise<void> {
@@ -77,7 +79,10 @@ async function pickRepoAction(
     abort: specialState ? () => runAndRefresh((r) => repository.abortOperation(r, specialState)) : async () => { /* noop */ },
     pull: () => runAndRefresh((r) => repository.pull(r)),
     push: () => runAndRefresh((r) => repository.push(r)),
-    fetch: () => runAndRefresh((r) => repository.fetch(r)),
+    fetch: () => runAndRefresh((r) => fetchCoordinator.fetch(r, {
+      reason: 'repo-actions-fetch',
+      minimumIntervalMs: DUPLICATE_FETCH_WINDOW_MS
+    }).then(() => undefined)),
     compareBranches: async () => pickCompareBranches(repository),
     undoLastOperation: async () => pickUndoOperation(repository, onRepositoryChanged),
     openGraph: async () => graphViewProvider.openOrReveal(),
@@ -204,6 +209,7 @@ async function pickUndoOperation(repository: GitRepository, onRepositoryChanged:
 
 export function registerRepoCommands(
   repository: GitRepository,
+  fetchCoordinator: GitFetchCoordinator,
   graphViewProvider: GitGraphViewProvider,
   onRepositoryChanged: () => void,
   subscriptions: vscode.ExtensionContext['subscriptions']
@@ -214,7 +220,7 @@ export function registerRepoCommands(
     }),
     vscode.commands.registerCommand('repoFlow.showRepoActions', async () => {
       try {
-        await pickRepoAction(repository, graphViewProvider, onRepositoryChanged);
+        await pickRepoAction(repository, fetchCoordinator, graphViewProvider, onRepositoryChanged);
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         void vscode.window.showErrorMessage(`RepoFlow: ${msg}`);
@@ -225,7 +231,10 @@ export function registerRepoCommands(
     }),
     vscode.commands.registerCommand('repoFlow.fetch', async () => {
       const repoRoot = await repository.resolveRepositoryRoot();
-      await repository.fetch(repoRoot);
+      await fetchCoordinator.fetch(repoRoot, {
+        reason: 'command-palette-fetch',
+        minimumIntervalMs: DUPLICATE_FETCH_WINDOW_MS
+      });
       onRepositoryChanged();
     }),
     vscode.commands.registerCommand('repoFlow.pull', async () => {

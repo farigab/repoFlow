@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { DUPLICATE_FETCH_WINDOW_MS, type GitFetchCoordinator } from '../../application/fetch/GitFetchCoordinator';
 import type { GraphFilters } from '../../core/models';
 import type { GitRepository } from '../../core/ports/GitRepository';
 
@@ -28,6 +29,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   public constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly repository: GitRepository,
+    private readonly fetchCoordinator: GitFetchCoordinator,
     private readonly output: vscode.OutputChannel,
     private readonly repoStatusBar?: vscode.StatusBarItem,
     private readonly onRepositoryChanged?: () => void
@@ -714,7 +716,10 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
   private async handleFetchRepo(payload: PayloadFor<'fetchRepo'>): Promise<void> {
     await this.executeRepositoryAction('Fetching...', async () => {
-      await this.repository.fetch(payload.repoRoot);
+      await this.fetchCoordinator.fetch(payload.repoRoot, {
+        reason: 'webview-fetch',
+        minimumIntervalMs: DUPLICATE_FETCH_WINDOW_MS
+      });
     });
   }
 

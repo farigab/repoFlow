@@ -1,5 +1,6 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { GitFetchCoordinator } from './application/fetch/GitFetchCoordinator';
 import { RefreshCoordinator } from './application/refresh/RefreshCoordinator';
 import type { DiffRequest } from './core/models';
 import { GitAutoFetchService } from './infrastructure/git/GitAutoFetchService';
@@ -23,6 +24,7 @@ export function activate(context: vscode.ExtensionContext): void {
     openNativeDiff(request, contentProvider)
   );
   contentProvider = new GitContentProvider(repository);
+  const fetchCoordinator = new GitFetchCoordinator(repository, output);
 
   const repoStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   repoStatusBar.command = 'repoFlow.showRepoActions';
@@ -34,6 +36,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const graphViewProvider = new GitGraphViewProvider(
     context.extensionUri,
     repository,
+    fetchCoordinator,
     output,
     repoStatusBar,
     () => refreshCoordinator.requestRefresh('webview-action')
@@ -55,12 +58,14 @@ export function activate(context: vscode.ExtensionContext): void {
   });
   const autoFetchService = new GitAutoFetchService(
     repository,
+    fetchCoordinator,
     () => refreshCoordinator.requestRefresh('auto-fetch'),
     output
   );
 
   context.subscriptions.push(
     output,
+    fetchCoordinator,
     repoStatusBar,
     branchTreeView,
     blameController,
@@ -70,10 +75,15 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   autoFetchService.start();
-  registerGitWatchers(() => refreshCoordinator.requestRefresh('git-watcher'), context.subscriptions);
-  registerRepoCommands(repository, graphViewProvider, () => refreshCoordinator.requestRefresh('repo-command'), context.subscriptions);
+  registerGitWatchers(() => {
+    if (!fetchCoordinator.isFetchActiveOrRecentlyCompleted()) {
+      refreshCoordinator.requestRefresh('git-watcher');
+    }
+  }, context.subscriptions);
+  registerRepoCommands(repository, fetchCoordinator, graphViewProvider, () => refreshCoordinator.requestRefresh('repo-command'), context.subscriptions);
   registerBranchCommands(
     repository,
+    fetchCoordinator,
     branchTreeProvider,
     () => refreshCoordinator.requestRefresh('branch-command'),
     context.subscriptions
