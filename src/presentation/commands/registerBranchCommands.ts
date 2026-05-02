@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import type { GitFetchCoordinator } from '../../application/fetch/GitFetchCoordinator';
 import type { GitRepository } from '../../core/ports/GitRepository';
 import { BranchTreeDataProvider, BranchTreeItem } from '../branches/BranchTreeDataProvider';
 
@@ -8,6 +9,7 @@ import { BranchTreeDataProvider, BranchTreeItem } from '../branches/BranchTreeDa
 
 async function deleteRemoteBranchFromItem(
   repository: GitRepository,
+  fetchCoordinator: GitFetchCoordinator,
   repoRoot: string,
   fullBranchName: string
 ): Promise<void> {
@@ -26,7 +28,7 @@ async function deleteRemoteBranchFromItem(
     // If the remote ref is already gone, attempt to prune local tracking refs so the UI updates.
     if (msg.includes('remote ref does not exist') || msg.includes('unable to delete') || msg.includes('failed to push some refs')) {
       try {
-        await repository.fetch(repoRoot);
+        await fetchCoordinator.fetch(repoRoot, { reason: 'remote-delete-prune' });
         void vscode.window.showInformationMessage(`Remote branch '${fullBranchName}' not found; pruned local tracking refs.`);
       } catch (fetchErr) {
         const fetchMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
@@ -76,6 +78,7 @@ async function deleteLocalBranchWithConfirm(
 
 export function registerBranchCommands(
   repository: GitRepository,
+  fetchCoordinator: GitFetchCoordinator,
   branchTreeProvider: BranchTreeDataProvider,
   onRepositoryChanged: () => void,
   subscriptions: vscode.ExtensionContext['subscriptions']
@@ -126,7 +129,7 @@ export function registerBranchCommands(
       }
 
       if (item.branch.remote) {
-        await deleteRemoteBranchFromItem(repository, repoRoot, item.branch.shortName);
+        await deleteRemoteBranchFromItem(repository, fetchCoordinator, repoRoot, item.branch.shortName);
       } else {
         await deleteLocalBranchWithConfirm(repository, repoRoot, item.branch.shortName);
       }

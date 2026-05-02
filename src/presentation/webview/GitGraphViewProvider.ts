@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { DUPLICATE_FETCH_WINDOW_MS, type GitFetchCoordinator } from '../../application/fetch/GitFetchCoordinator';
 import type { GraphFilters } from '../../core/models';
 import type { GitRepository } from '../../core/ports/GitRepository';
 
@@ -8,6 +9,57 @@ import { renderHtml } from './GitGraphRenderer';
 import { buildPrUrl, resolvePreferredRemoteForPullRequest } from './GitGraphUtils';
 type MessageType = WebviewToExtensionMessage['type'];
 type PayloadFor<T extends MessageType> = Extract<WebviewToExtensionMessage, { type: T }> extends { payload: infer P } ? P : undefined;
+
+function buildHookTemplate(hookName: string): string {
+  switch (hookName) {
+    case 'commit-msg':
+      return [
+        '#!/bin/sh',
+        '',
+        '# Validate the commit message file passed as the first argument.',
+        '# Exit with a non-zero status to block the commit.',
+        '',
+        'MESSAGE_FILE="$1"',
+        '',
+        'echo "commit-msg: inspect $MESSAGE_FILE"',
+        'exit 0',
+        ''
+      ].join('\n');
+    case 'pre-push':
+      return [
+        '#!/bin/sh',
+        '',
+        '# Runs before refs are pushed to the remote.',
+        '# stdin receives the refs that will be updated.',
+        '',
+        'echo "pre-push: add your checks here"',
+        'exit 0',
+        ''
+      ].join('\n');
+    case 'pre-commit':
+      return [
+        '#!/bin/sh',
+        '',
+        '# Runs before a commit is created.',
+        '# Exit with a non-zero status to block the commit.',
+        '',
+        'echo "pre-commit: add your checks here"',
+        'exit 0',
+        ''
+      ].join('\n');
+    default:
+      return [
+        '#!/bin/sh',
+        '',
+        `# ${hookName} hook`,
+        '# Exit with a non-zero status to block the Git action.',
+        '',
+        `echo "${hookName}: add your checks here"`,
+        'exit 0',
+        ''
+      ].join('\n');
+  }
+}
 
 export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'repoFlow.graphPanel';
@@ -28,6 +80,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   public constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly repository: GitRepository,
+    private readonly fetchCoordinator: GitFetchCoordinator,
     private readonly output: vscode.OutputChannel,
     private readonly repoStatusBar?: vscode.StatusBarItem,
     private readonly onRepositoryChanged?: () => void
@@ -225,6 +278,9 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
       commitChangesPrompt: async (p) => this.handleCommitChangesPrompt(p),
       setGitUserName: async (p) => this.handleSetGitUserName(p),
       setGitUserEmail: async (p) => this.handleSetGitUserEmail(p),
+      setGitHooksPath: async (p) => this.handleSetGitHooksPath(p),
+      openHooksFolder: async (p) => this.handleOpenHooksFolder(p),
+      openHookScript: async (p) => this.handleOpenHookScript(p),
       setRemoteUrl: async (p) => this.handleSetRemoteUrl(p),
       openPullRequest: async (p) => this.handleOpenPullRequest(p),
       listStashes: async (p) => this.handleListStashes(p),
@@ -475,6 +531,33 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  private async handleSetGitHooksPath(payload: PayloadFor<'setGitHooksPath'>): Promise<void> {
+    await this.executeRepositoryAction('Saving core.hooksPath...', async () => {
+      await this.repository.setGitHooksPath(payload.repoRoot, payload.hooksPath);
+    });
+  }
+
+  private async handleOpenHooksFolder(payload: PayloadFor<'openHooksFolder'>): Promise<void> {
+    await this.executeUiAction('Opening hooks folder...', async () => {
+      const hooksDirectory = await this.resolveHooksDirectory(payload.repoRoot, payload.hooksPath);
+      const hooksUri = vscode.Uri.file(hooksDirectory);
+      await vscode.workspace.fs.createDirectory(hooksUri);
+      const opened = await vscode.env.openExternal(hooksUri);
+      if (!opened) {
+        await vscode.commands.executeCommand('revealFileInOS', hooksUri);
+      }
+    }, 'Hooks folder opened.');
+  }
+
+  private async handleOpenHookScript(payload: PayloadFor<'openHookScript'>): Promise<void> {
+    await this.executeUiAction(`Opening ${payload.hookName} hook...`, async () => {
+      const scriptUri = await this.ensureHookScript(payload.repoRoot, payload.hooksPath, payload.hookName);
+      await this.refresh();
+      const doc = await vscode.workspace.openTextDocument(scriptUri);
+      await vscode.window.showTextDocument(doc, { preserveFocus: false, preview: false });
+    }, `${payload.hookName} hook ready.`);
+  }
+
   private async handleSetRemoteUrl(payload: PayloadFor<'setRemoteUrl'>): Promise<void> {
     await this.executeRepositoryAction('Saving remote URL...', async () => {
       await this.repository.setRemoteUrl(payload.repoRoot, payload.remoteName, payload.url);
@@ -714,7 +797,10 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
   private async handleFetchRepo(payload: PayloadFor<'fetchRepo'>): Promise<void> {
     await this.executeRepositoryAction('Fetching...', async () => {
-      await this.repository.fetch(payload.repoRoot);
+      await this.fetchCoordinator.fetch(payload.repoRoot, {
+        reason: 'webview-fetch',
+        minimumIntervalMs: DUPLICATE_FETCH_WINDOW_MS
+      });
     });
   }
 
@@ -778,6 +864,21 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private async executeUiAction(label: string, action: () => Promise<void>, successMessage: string): Promise<boolean> {
+    try {
+      await this.withBusy(label, async () => {
+        await action();
+        await this.postNotification('info', successMessage);
+      });
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.output.appendLine(`[ui-error] ${message}`);
+      await this.postNotification('error', message);
+      return false;
+    }
+  }
+
   private async withBusy(label: string, action: () => Promise<void>): Promise<void> {
     await this.postMessage({ type: 'busy', payload: { value: true, label } });
     try {
@@ -803,6 +904,67 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
       sends.push(this.currentPanel.webview.postMessage(message));
     }
     await Promise.all(sends);
+  }
+
+  private async resolveHooksDirectory(repoRoot: string, hooksPath: string): Promise<string> {
+    const nodePath = await import('node:path');
+    const configuredPath = hooksPath.trim();
+
+    if (configuredPath) {
+      return nodePath.isAbsolute(configuredPath)
+        ? configuredPath
+        : nodePath.join(repoRoot, configuredPath);
+    }
+
+    try {
+      const [{ execFile }, { promisify }] = await Promise.all([
+        import('node:child_process'),
+        import('node:util')
+      ]);
+      const execFileAsync = promisify(execFile);
+      const { stdout } = await execFileAsync('git', ['rev-parse', '--git-path', 'hooks'], { cwd: repoRoot });
+      const resolvedPath = stdout.trim();
+      if (resolvedPath) {
+        return nodePath.isAbsolute(resolvedPath)
+          ? resolvedPath
+          : nodePath.join(repoRoot, resolvedPath);
+      }
+    } catch {
+      // Fall back to the standard repository hooks directory when Git path resolution fails.
+    }
+
+    return nodePath.join(repoRoot, '.git', 'hooks');
+  }
+
+  private async ensureHookScript(repoRoot: string, hooksPath: string, hookName: string): Promise<vscode.Uri> {
+    if (!/^[a-z0-9][a-z0-9-]*$/i.test(hookName)) {
+      throw new Error('Invalid hook name.');
+    }
+
+    const [{ chmod }, nodePath] = await Promise.all([
+      import('node:fs/promises'),
+      import('node:path')
+    ]);
+    const hooksDirectory = await this.resolveHooksDirectory(repoRoot, hooksPath);
+    const hooksUri = vscode.Uri.file(hooksDirectory);
+    await vscode.workspace.fs.createDirectory(hooksUri);
+
+    const scriptUri = vscode.Uri.file(nodePath.join(hooksDirectory, hookName));
+    let exists = true;
+    try {
+      await vscode.workspace.fs.stat(scriptUri);
+    } catch {
+      exists = false;
+    }
+
+    if (!exists) {
+      await vscode.workspace.fs.writeFile(scriptUri, Buffer.from(buildHookTemplate(hookName), 'utf8'));
+      if (process.platform !== 'win32') {
+        await chmod(scriptUri.fsPath, 0o755).catch(() => undefined);
+      }
+    }
+
+    return scriptUri;
   }
 
   private isDirtyWorktreeRemovalError(message: string): boolean {
