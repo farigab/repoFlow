@@ -24,6 +24,9 @@ export type WebviewToExtensionMessage =
   | { type: 'commitChangesPrompt'; payload: { repoRoot: string } }
   | { type: 'setGitUserName'; payload: { repoRoot: string; name: string } }
   | { type: 'setGitUserEmail'; payload: { repoRoot: string; email: string } }
+  | { type: 'setGitHooksPath'; payload: { repoRoot: string; hooksPath: string } }
+  | { type: 'openHooksFolder'; payload: { repoRoot: string; hooksPath: string } }
+  | { type: 'openHookScript'; payload: { repoRoot: string; hooksPath: string; hookName: string } }
   | { type: 'setRemoteUrl'; payload: { repoRoot: string; remoteName: string; url: string } }
   | { type: 'openPullRequest'; payload: { repoRoot: string; sourceBranch: string; targetBranch: string; title: string; description: string } }
   | { type: 'listStashes'; payload: { repoRoot: string } }

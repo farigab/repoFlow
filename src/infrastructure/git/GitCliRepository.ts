@@ -6,10 +6,10 @@ import * as vscode from 'vscode';
 import { buildGraphRows } from '../../application/graph/buildGraphRows';
 import type {
   BlameEntry,
-  BranchSummary,
   BranchCompareCommit,
   BranchCompareFile,
   BranchCompareResult,
+  BranchSummary,
   CommitDetail,
   CommitStats,
   DiffRequest,
@@ -623,11 +623,13 @@ export class GitCliRepository implements GitRepository {
   }
 
   public async getRepoConfig(repoRoot: string): Promise<RepoGitConfig> {
-    const [userName, userEmail, remoteRaw] = await Promise.all([
+    const [userName, userEmail, hooksPath, remoteRaw] = await Promise.all([
       this.runGit(repoRoot, ['config', '--get', 'user.name']).catch(() => ''),
       this.runGit(repoRoot, ['config', '--get', 'user.email']).catch(() => ''),
+      this.runGit(repoRoot, ['config', '--get', 'core.hooksPath']).catch(() => ''),
       this.runGit(repoRoot, ['remote', '-v']).catch(() => '')
     ]);
+    const hookScripts = await this.listHookScripts(repoRoot, hooksPath.trim());
 
     const seenRemotes = new Set<string>();
     const remotes: RepoGitConfig['remotes'] = [];
@@ -639,7 +641,13 @@ export class GitCliRepository implements GitRepository {
       }
     }
 
-    return { userName: userName.trim(), userEmail: userEmail.trim(), remotes };
+    return {
+      userName: userName.trim(),
+      userEmail: userEmail.trim(),
+      hooksPath: hooksPath.trim(),
+      hookScripts,
+      remotes
+    };
   }
 
   public async setGitUserName(repoRoot: string, name: string): Promise<void> {
@@ -652,9 +660,52 @@ export class GitCliRepository implements GitRepository {
     this.graphCache.clear();
   }
 
+  public async setGitHooksPath(repoRoot: string, hooksPath: string): Promise<void> {
+    const trimmed = hooksPath.trim();
+    if (trimmed) {
+      await this.runGit(repoRoot, ['config', 'core.hooksPath', trimmed]);
+    } else {
+      await this.runGit(repoRoot, ['config', '--unset', 'core.hooksPath']).catch(() => undefined);
+    }
+    this.graphCache.clear();
+  }
+
   public async setRemoteUrl(repoRoot: string, remoteName: string, url: string): Promise<void> {
     await this.runGit(repoRoot, ['remote', 'set-url', remoteName, url]);
     this.graphCache.clear();
+  }
+
+  private async listHookScripts(repoRoot: string, hooksPath: string): Promise<string[]> {
+    const hooksDirectory = await this.resolveHooksDirectory(repoRoot, hooksPath);
+    const entries = await fs.readdir(hooksDirectory, { withFileTypes: true }).catch(() => []);
+
+    return entries
+      .filter((entry) => (entry.isFile() || entry.isSymbolicLink()) && !entry.name.endsWith('.sample'))
+      .map((entry) => entry.name)
+      .sort((left, right) => left.localeCompare(right));
+  }
+
+  private async resolveHooksDirectory(repoRoot: string, hooksPath: string): Promise<string> {
+    const configuredPath = hooksPath.trim();
+
+    if (configuredPath) {
+      return path.isAbsolute(configuredPath)
+        ? configuredPath
+        : path.resolve(repoRoot, configuredPath);
+    }
+
+    try {
+      const resolvedPath = (await this.runGit(repoRoot, ['rev-parse', '--git-path', 'hooks'])).trim();
+      if (resolvedPath) {
+        return path.isAbsolute(resolvedPath)
+          ? resolvedPath
+          : path.resolve(repoRoot, resolvedPath);
+      }
+    } catch {
+      // Fall back to the default hooks location when Git cannot resolve it.
+    }
+
+    return path.join(repoRoot, '.git', 'hooks');
   }
 
   public async listStashes(repoRoot: string): Promise<StashEntry[]> {
@@ -1053,4 +1104,3 @@ export class GitCliRepository implements GitRepository {
     }
   }
 }
-
