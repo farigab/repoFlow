@@ -1,13 +1,9 @@
-import { execFile } from 'node:child_process';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { promisify } from 'node:util';
 import * as vscode from 'vscode';
 import { buildGraphRows } from '../../application/graph/buildGraphRows';
 import type {
   BlameEntry,
-  BranchCompareCommit,
-  BranchCompareFile,
   BranchCompareResult,
   BranchSummary,
   CommitDetail,
@@ -25,6 +21,15 @@ import type {
 } from '../../core/models';
 import type { GitRepository } from '../../core/ports/GitRepository';
 import { EMPTY_TREE } from '../../shared/constants';
+import { GitCommandRunner, type GitRunOptions } from './GitCommandRunner';
+import {
+  escapePathSpec,
+  parseCompareCommits,
+  parseNameStatusAndNumstat,
+  parseStashFiles,
+  parseStashList,
+  parseUndoEntries
+} from './GitOperationParsers';
 import { GitCache } from './GitCache';
 import {
   parseBlameOutput,
@@ -38,166 +43,18 @@ import {
   parseWorktreeStatusV2
 } from './GitParsers';
 
-const execFileAsync = promisify(execFile);
 const HASH_SEARCH_PATTERN = /^[0-9a-f]{4,40}$/i;
-
-function escapePathSpec(filePath: string): string {
-  return filePath.replaceAll('\\', '/');
-}
-
-function parseStashList(raw: string): StashEntry[] {
-  if (!raw.trim()) {
-    return [];
-  }
-
-  const entries: StashEntry[] = [];
-  for (const record of raw.split('\x1e')) {
-    const trimmed = record.trim();
-    if (!trimmed) {
-      continue;
-    }
-
-    const parts = trimmed.split('\x1f');
-    if (parts.length < 3) {
-      continue;
-    }
-
-    const ref = parts[0].trim();
-    const subject = parts[1].trim();
-    const date = parts[2].trim();
-
-    const indexMatch = /stash@\{(\d+)\}/.exec(ref);
-    const index = indexMatch ? Number.parseInt(indexMatch[1], 10) : 0;
-
-    const branchMatch = /^(?:WIP on|On) ([^:]+):/.exec(subject);
-    const branch = branchMatch ? branchMatch[1].trim() : '';
-
-    entries.push({ index, ref, message: subject, branch, date, files: [] });
-  }
-
-  return entries;
-}
-
-function parseStashFiles(raw: string): StashFile[] {
-  const parts = raw.split('\0').filter(Boolean);
-  const files: StashFile[] = [];
-
-  for (let index = 0; index < parts.length;) {
-    const rawStatus = parts[index++]?.trim();
-    if (!rawStatus) {
-      continue;
-    }
-
-    const status = rawStatus.replaceAll(/\d+/g, '') || rawStatus;
-
-    if (status.startsWith('R') || status.startsWith('C')) {
-      const originalPath = parts[index++];
-      const filePath = parts[index++];
-      if (filePath) {
-        files.push({ path: filePath, originalPath, status: status[0] });
-      }
-      continue;
-    }
-
-    const filePath = parts[index++];
-    if (filePath) {
-      files.push({ path: filePath, status: status[0] ?? status });
-    }
-  }
-
-  return files;
-}
-
-function parseCompareCommits(raw: string): BranchCompareCommit[] {
-  if (!raw.trim()) {
-    return [];
-  }
-
-  return raw
-    .split('\x1e')
-    .map((record) => record.trim())
-    .filter(Boolean)
-    .map((record) => {
-      const [hash = '', authorName = '', authoredAt = '', subject = ''] = record.split('\x1f');
-      return {
-        hash,
-        shortHash: hash.slice(0, 8),
-        authorName,
-        authoredAt,
-        subject
-      };
-    })
-    .filter((commit) => commit.hash.length > 0);
-}
-
-function parseNameStatusAndNumstat(nameStatusRaw: string, numstatRaw: string): BranchCompareFile[] {
-  const files: BranchCompareFile[] = [];
-  const numstatByPath = new Map<string, { additions: number; deletions: number }>();
-
-  for (const line of numstatRaw.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      continue;
-    }
-
-    const [rawAdditions, rawDeletions, pathA, pathB] = trimmed.split('\t');
-    const additions = rawAdditions === '-' ? 0 : Number.parseInt(rawAdditions ?? '0', 10);
-    const deletions = rawDeletions === '-' ? 0 : Number.parseInt(rawDeletions ?? '0', 10);
-    const key = pathB ?? pathA;
-    if (key) {
-      numstatByPath.set(key, { additions: Number.isFinite(additions) ? additions : 0, deletions: Number.isFinite(deletions) ? deletions : 0 });
-    }
-  }
-
-  for (const line of nameStatusRaw.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      continue;
-    }
-
-    const [rawStatus, pathA, pathB] = trimmed.split('\t');
-    if (!rawStatus || !pathA) {
-      continue;
-    }
-
-    const status = rawStatus[0] ?? rawStatus;
-    const finalPath = pathB ?? pathA;
-    const stats = numstatByPath.get(finalPath) ?? { additions: 0, deletions: 0 };
-    files.push({
-      status,
-      path: finalPath,
-      originalPath: pathB ? pathA : undefined,
-      additions: stats.additions,
-      deletions: stats.deletions
-    });
-  }
-
-  return files;
-}
-
-function parseUndoEntries(raw: string): UndoEntry[] {
-  if (!raw.trim()) {
-    return [];
-  }
-
-  return raw
-    .split('\x1e')
-    .map((record) => record.trim())
-    .filter(Boolean)
-    .map((record) => {
-      const [hash = '', ref = '', date = '', message = ''] = record.split('\x1f');
-      return { hash, shortHash: hash.slice(0, 8), ref, date, message };
-    })
-    .filter((entry) => entry.hash.length > 0 && entry.ref.length > 0);
-}
 
 export class GitCliRepository implements GitRepository {
   private readonly graphCache = new GitCache<GraphSnapshot>(3_000);
+  private readonly gitRunner: GitCommandRunner;
 
   public constructor(
     private readonly output: vscode.OutputChannel,
     private readonly openDiffHandler: (request: DiffRequest) => Promise<void>
-  ) { }
+  ) {
+    this.gitRunner = new GitCommandRunner(output);
+  }
 
   public clearTransientCaches(): void {
     this.graphCache.clear();
@@ -496,7 +353,7 @@ export class GitCliRepository implements GitRepository {
   }
 
   public async deleteBranch(repoRoot: string, name: string, force = false): Promise<void> {
-    await this.runGit(repoRoot, ['branch', force ? '-D' : '-d', name]);
+    await this.runGit(repoRoot, ['branch', force ? '-D' : '-d', '--', name]);
     this.graphCache.clear();
   }
 
@@ -1082,25 +939,7 @@ export class GitCliRepository implements GitRepository {
     await this.runGit(repoRoot, ['checkout', localName]);
   }
 
-  private async runGit(repoRoot: string, args: string[], options?: { logErrors?: boolean; logCommand?: boolean }): Promise<string> {
-    if (options?.logCommand !== false) {
-      this.output.appendLine(`git -C ${repoRoot} ${args.join(' ')}`);
-    }
-
-    try {
-      const result = await execFileAsync('git', ['-C', repoRoot, ...args], {
-        encoding: 'utf8',
-        windowsHide: true,
-        maxBuffer: 20 * 1024 * 1024
-      });
-
-      return result.stdout.trimEnd();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (options?.logErrors !== false) {
-        this.output.appendLine(`[error] ${message}`);
-      }
-      throw new Error(message);
-    }
+  private async runGit(repoRoot: string, args: string[], options?: GitRunOptions): Promise<string> {
+    return this.gitRunner.run(repoRoot, args, options);
   }
 }

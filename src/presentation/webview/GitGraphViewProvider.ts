@@ -1,9 +1,24 @@
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { DUPLICATE_FETCH_WINDOW_MS, type GitFetchCoordinator } from '../../application/fetch/GitFetchCoordinator';
-import type { GraphFilters } from '../../core/models';
+import type { GraphFilters, WorktreeEntry } from '../../core/models';
 import type { GitRepository } from '../../core/ports/GitRepository';
 
 import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '../../shared/protocol';
+import {
+  assertCommitHash,
+  assertReflogRef,
+  assertRepoSpecialState,
+  assertSafeAbsoluteFsPath,
+  assertSafeBranchName,
+  assertSafeGitRef,
+  assertSafeHookName,
+  assertSafeRelativeGitPath,
+  assertSafeRelativeGitPaths,
+  assertSafeRemoteName,
+  assertStashRef,
+  normalizeFsPathForComparison
+} from '../../shared/gitInputValidation';
 import { buildRepoStatusBarText, buildRepoSummary } from '../../shared/repoSummary';
 import { renderHtml } from './GitGraphRenderer';
 import { buildPrUrl, resolvePreferredRemoteForPullRequest } from './GitGraphUtils';
@@ -183,11 +198,12 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
    * selecting it and opening the detail panel. Called from the blame hover.
    */
   public openAndRevealCommit(commitHash: string): void {
+    const trustedCommitHash = assertCommitHash(commitHash);
     // openOrReveal() resets selectedCommitHash synchronously, so set ours back
     // immediately after — refresh() is async and reads it on next microtask.
     this.openOrReveal();
-    this.selectedCommitHash = commitHash;
-    this.pendingRevealHash = commitHash;
+    this.selectedCommitHash = trustedCommitHash;
+    this.pendingRevealHash = trustedCommitHash;
   }
 
   public async refresh(): Promise<void> {
@@ -311,10 +327,16 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
       undoTo: async (p) => this.handleUndoTo(p)
     };
 
-    const handler = handlers[message.type];
-    if (handler) {
-      const payload = (message as WebviewToExtensionMessage & { payload?: unknown }).payload;
-      await (handler as (p: unknown) => Promise<void>)(payload);
+    try {
+      const handler = handlers[message.type];
+      if (handler) {
+        const payload = (message as WebviewToExtensionMessage & { payload?: unknown }).payload;
+        await (handler as (p: unknown) => Promise<void>)(payload);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.output.appendLine(`[webview-message] ${message.type}: ${errorMessage}`);
+      await this.postNotification('error', errorMessage);
     }
   }
 
@@ -323,23 +345,27 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleLoadMore(payload: PayloadFor<'loadMore'>): Promise<void> {
-    this.filters = { ...this.filters, limit: payload.limit };
+    this.filters = { ...this.filters, ...this.normalizeFilters({ limit: payload.limit }) };
     await this.refresh();
   }
 
   private async handleApplyFilters(payload: PayloadFor<'applyFilters'>): Promise<void> {
-    this.filters = { ...this.filters, ...payload };
+    this.filters = { ...this.filters, ...this.normalizeFilters(payload) };
     await this.refresh();
   }
 
   private async handleSelectCommit(payload: PayloadFor<'selectCommit'>): Promise<void> {
-    this.selectedCommitHash = payload.commitHash;
-    const detail = await this.repository.getCommitDetail(payload.repoRoot, payload.commitHash);
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const commitHash = assertCommitHash(payload.commitHash);
+    this.selectedCommitHash = commitHash;
+    const detail = await this.repository.getCommitDetail(repoRoot, commitHash);
     await this.postMessage({ type: 'commitDetail', payload: detail });
   }
 
   private async handleOpenDiff(payload: PayloadFor<'openDiff'>): Promise<void> {
-    await this.repository.openDiff(payload);
+    const request = this.validateDiffRequest(payload);
+    request.repoRoot = await this.getTrustedRepoRoot(request.repoRoot);
+    await this.repository.openDiff(request);
   }
 
   private async handleCreateBranchPrompt(payload: PayloadFor<'createBranchPrompt'>): Promise<void> {
@@ -350,101 +376,126 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
       validateInput: (value) => (value.trim() ? undefined : 'Please enter a branch name.')
     });
     if (!name) return;
+    const branchName = assertSafeBranchName(name);
+    const fromRef = payload.fromRef ? assertSafeGitRef(payload.fromRef, 'source ref') : undefined;
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
     await this.executeRepositoryAction('Creating branch...', async () => {
-      await this.repository.createBranch(payload.repoRoot, name.trim(), payload.fromRef);
+      await this.repository.createBranch(repoRoot, branchName, fromRef);
     });
   }
 
   private async handleDeleteBranch(payload: PayloadFor<'deleteBranch'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const branchName = assertSafeBranchName(payload.branchName);
+    const confirmed = await vscode.window.showWarningMessage(
+      `Delete branch ${branchName}?`,
+      { modal: true },
+      'Delete'
+    );
+    if (confirmed !== 'Delete') return;
     await this.executeRepositoryAction('Deleting branch...', async () => {
-      await this.repository.deleteBranch(payload.repoRoot, payload.branchName);
+      await this.repository.deleteBranch(repoRoot, branchName);
     });
   }
 
   private async handleCheckoutCommit(payload: PayloadFor<'checkoutCommit'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const commitHash = assertCommitHash(payload.commitHash);
     const confirmed = await vscode.window.showWarningMessage(
-      `Checkout detached HEAD at ${payload.commitHash.slice(0, 8)}?`,
+      `Checkout detached HEAD at ${commitHash.slice(0, 8)}?`,
       { modal: true },
       'Checkout'
     );
     if (confirmed !== 'Checkout') return;
     await this.executeRepositoryAction('Checking out commit...', async () => {
-      await this.repository.checkout(payload.repoRoot, payload.commitHash);
+      await this.repository.checkout(repoRoot, commitHash);
     });
   }
 
   private async handleCherryPick(payload: PayloadFor<'cherryPick'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const commitHash = assertCommitHash(payload.commitHash);
     await this.executeRepositoryAction('Cherry-picking...', async () => {
-      await this.repository.cherryPick(payload.repoRoot, payload.commitHash);
+      await this.repository.cherryPick(repoRoot, commitHash);
     });
   }
 
   private async handleRevertCommit(payload: PayloadFor<'revertCommit'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const commitHash = assertCommitHash(payload.commitHash);
     const confirmed = await vscode.window.showWarningMessage(
-      `Revert commit ${payload.commitHash.slice(0, 8)}?`,
+      `Revert commit ${commitHash.slice(0, 8)}?`,
       { modal: true },
       'Revert'
     );
     if (confirmed !== 'Revert') return;
     await this.executeRepositoryAction('Reverting commit...', async () => {
-      await this.repository.revert(payload.repoRoot, payload.commitHash);
+      await this.repository.revert(repoRoot, commitHash);
     });
   }
 
   private async handleDropCommit(payload: PayloadFor<'dropCommit'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const commitHash = assertCommitHash(payload.commitHash);
     const confirmed = await vscode.window.showWarningMessage(
-      `Drop commit ${payload.commitHash.slice(0, 8)}? This rewrites history.`,
+      `Drop commit ${commitHash.slice(0, 8)}? This rewrites history.`,
       { modal: true },
       'Drop'
     );
     if (confirmed !== 'Drop') return;
     await this.executeRepositoryAction('Dropping commit...', async () => {
-      await this.repository.dropCommit(payload.repoRoot, payload.commitHash);
+      await this.repository.dropCommit(repoRoot, commitHash);
     });
   }
 
   private async handleMergeCommit(payload: PayloadFor<'mergeCommit'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const commitHash = assertCommitHash(payload.commitHash);
     const confirmed = await vscode.window.showWarningMessage(
-      `Merge commit ${payload.commitHash.slice(0, 8)} into the current branch?`,
+      `Merge commit ${commitHash.slice(0, 8)} into the current branch?`,
       { modal: true },
       'Merge'
     );
     if (confirmed !== 'Merge') return;
     await this.executeRepositoryAction('Merging...', async () => {
-      await this.repository.merge(payload.repoRoot, payload.commitHash);
+      await this.repository.merge(repoRoot, commitHash);
     });
   }
 
   private async handleRebaseOnCommit(payload: PayloadFor<'rebaseOnCommit'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const commitHash = assertCommitHash(payload.commitHash);
     const confirmed = await vscode.window.showWarningMessage(
-      `Rebase current branch onto commit ${payload.commitHash.slice(0, 8)}?`,
+      `Rebase current branch onto commit ${commitHash.slice(0, 8)}?`,
       { modal: true },
       'Rebase'
     );
     if (confirmed !== 'Rebase') return;
     await this.executeRepositoryAction('Rebasing...', async () => {
-      await this.repository.rebase(payload.repoRoot, payload.commitHash);
+      await this.repository.rebase(repoRoot, commitHash);
     });
   }
 
   private async handleResetToCommit(payload: PayloadFor<'resetToCommit'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const commitHash = assertCommitHash(payload.commitHash);
     const mode = await vscode.window.showQuickPick(
       [
         { label: 'Soft', description: 'Keep changes staged', value: 'soft' as const },
         { label: 'Mixed', description: 'Keep changes in working tree', value: 'mixed' as const },
         { label: 'Hard', description: 'Discard all changes', value: 'hard' as const }
       ],
-      { title: `Reset to ${payload.commitHash.slice(0, 8)}`, placeHolder: 'Select reset mode' }
+      { title: `Reset to ${commitHash.slice(0, 8)}`, placeHolder: 'Select reset mode' }
     );
     if (!mode) return;
     const confirmed = await vscode.window.showWarningMessage(
-      `Reset (${mode.label}) current branch to ${payload.commitHash.slice(0, 8)}?`,
+      `Reset (${mode.label}) current branch to ${commitHash.slice(0, 8)}?`,
       { modal: true },
       'Reset'
     );
     if (confirmed !== 'Reset') return;
     await this.executeRepositoryAction('Resetting...', async () => {
-      await this.repository.resetTo(payload.repoRoot, payload.commitHash, mode.value);
+      await this.repository.resetTo(repoRoot, commitHash, mode.value);
     });
   }
 
@@ -459,31 +510,34 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleOpenInTerminal(payload: PayloadFor<'openInTerminal'>): Promise<void> {
-    const hash = payload.commitHash;
-    if (!/^[0-9a-f]{4,40}$/i.test(hash)) {
-      await this.postNotification('error', 'Invalid commit hash.');
-      return;
-    }
-    const terminal = vscode.window.createTerminal({ cwd: payload.repoRoot, name: 'RepoFlow' });
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const hash = assertCommitHash(payload.commitHash);
+    const terminal = vscode.window.createTerminal({ cwd: repoRoot, name: 'RepoFlow' });
     terminal.show();
     terminal.sendText(`git show --stat ${hash}`, true);
   }
 
   private async handleStageFile(payload: PayloadFor<'stageFile'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const filePath = assertSafeRelativeGitPath(payload.file.path);
     await this.executeRepositoryAction('Staging file...', async () => {
-      await this.repository.stageFile(payload.repoRoot, payload.file.path);
+      await this.repository.stageFile(repoRoot, filePath);
     });
   }
 
   private async handleUnstageFile(payload: PayloadFor<'unstageFile'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const filePath = assertSafeRelativeGitPath(payload.file.path);
     await this.executeRepositoryAction('Unstaging file...', async () => {
-      await this.repository.unstageFile(payload.repoRoot, payload.file.path);
+      await this.repository.unstageFile(repoRoot, filePath);
     });
   }
 
   private async handleDiscardFile(payload: PayloadFor<'discardFile'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const filePath = assertSafeRelativeGitPath(payload.file.path);
     const confirmed = await vscode.window.showWarningMessage(
-      `Discard changes in ${payload.file.path}?`,
+      `Discard changes in ${filePath}?`,
       { modal: true },
       'Discard'
     );
@@ -491,11 +545,12 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     const tracked = payload.file.indexStatus !== '?' && payload.file.workTreeStatus !== '?';
     const stagedAddition = payload.file.indexStatus === 'A';
     await this.executeRepositoryAction('Discarding changes...', async () => {
-      await this.repository.discardFile(payload.repoRoot, payload.file.path, tracked, stagedAddition);
+      await this.repository.discardFile(repoRoot, filePath, tracked, stagedAddition);
     });
   }
 
   private async handleCommitChangesPrompt(payload: PayloadFor<'commitChangesPrompt'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
     const messageText = await vscode.window.showInputBox({
       title: 'Commit Changes',
       prompt: 'Commit message',
@@ -515,31 +570,35 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
     const amend = choice.label === 'Amend Last Commit';
     await this.executeRepositoryAction('Committing...', async () => {
-      await this.repository.commit(payload.repoRoot, messageText.trim(), amend);
+      await this.repository.commit(repoRoot, messageText.trim(), amend);
     });
   }
 
   private async handleSetGitUserName(payload: PayloadFor<'setGitUserName'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
     await this.executeRepositoryAction('Saving user.name...', async () => {
-      await this.repository.setGitUserName(payload.repoRoot, payload.name);
+      await this.repository.setGitUserName(repoRoot, payload.name.trim());
     });
   }
 
   private async handleSetGitUserEmail(payload: PayloadFor<'setGitUserEmail'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
     await this.executeRepositoryAction('Saving user.email...', async () => {
-      await this.repository.setGitUserEmail(payload.repoRoot, payload.email);
+      await this.repository.setGitUserEmail(repoRoot, payload.email.trim());
     });
   }
 
   private async handleSetGitHooksPath(payload: PayloadFor<'setGitHooksPath'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
     await this.executeRepositoryAction('Saving core.hooksPath...', async () => {
-      await this.repository.setGitHooksPath(payload.repoRoot, payload.hooksPath);
+      await this.repository.setGitHooksPath(repoRoot, payload.hooksPath);
     });
   }
 
   private async handleOpenHooksFolder(payload: PayloadFor<'openHooksFolder'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
     await this.executeUiAction('Opening hooks folder...', async () => {
-      const hooksDirectory = await this.resolveHooksDirectory(payload.repoRoot, payload.hooksPath);
+      const hooksDirectory = await this.resolveHooksDirectory(repoRoot, payload.hooksPath);
       const hooksUri = vscode.Uri.file(hooksDirectory);
       await vscode.workspace.fs.createDirectory(hooksUri);
       const opened = await vscode.env.openExternal(hooksUri);
@@ -550,29 +609,37 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleOpenHookScript(payload: PayloadFor<'openHookScript'>): Promise<void> {
-    await this.executeUiAction(`Opening ${payload.hookName} hook...`, async () => {
-      const scriptUri = await this.ensureHookScript(payload.repoRoot, payload.hooksPath, payload.hookName);
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const hookName = assertSafeHookName(payload.hookName);
+    await this.executeUiAction(`Opening ${hookName} hook...`, async () => {
+      const scriptUri = await this.ensureHookScript(repoRoot, payload.hooksPath, hookName);
       await this.refresh();
       const doc = await vscode.workspace.openTextDocument(scriptUri);
       await vscode.window.showTextDocument(doc, { preserveFocus: false, preview: false });
-    }, `${payload.hookName} hook ready.`);
+    }, `${hookName} hook ready.`);
   }
 
   private async handleSetRemoteUrl(payload: PayloadFor<'setRemoteUrl'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const remoteName = assertSafeRemoteName(payload.remoteName);
+    const remoteUrl = payload.url.trim();
     await this.executeRepositoryAction('Saving remote URL...', async () => {
-      await this.repository.setRemoteUrl(payload.repoRoot, payload.remoteName, payload.url);
+      await this.repository.setRemoteUrl(repoRoot, remoteName, remoteUrl);
     });
   }
 
   private async handleOpenPullRequest(payload: PayloadFor<'openPullRequest'>): Promise<void> {
     const { repoRoot, sourceBranch, targetBranch, title, description } = payload;
+    const trustedRepoRoot = await this.getTrustedRepoRoot(repoRoot);
+    const trustedSourceBranch = assertSafeBranchName(sourceBranch);
+    const trustedTargetBranch = assertSafeBranchName(targetBranch);
     const [config, branches] = await Promise.all([
-      this.repository.getRepoConfig(repoRoot),
-      this.repository.getBranches(repoRoot)
+      this.repository.getRepoConfig(trustedRepoRoot),
+      this.repository.getBranches(trustedRepoRoot)
     ]);
-    const remote = resolvePreferredRemoteForPullRequest(sourceBranch, branches, config.remotes);
+    const remote = resolvePreferredRemoteForPullRequest(trustedSourceBranch, branches, config.remotes);
     const remoteUrl = remote?.url ?? '';
-    const prUrl = buildPrUrl(remoteUrl, sourceBranch, targetBranch, title, description);
+    const prUrl = buildPrUrl(remoteUrl, trustedSourceBranch, trustedTargetBranch, title, description);
     if (prUrl) {
       await vscode.env.openExternal(vscode.Uri.parse(prUrl));
     } else {
@@ -581,11 +648,13 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleListStashes(payload: PayloadFor<'listStashes'>): Promise<void> {
-    const entries = await this.repository.listStashes(payload.repoRoot);
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const entries = await this.repository.listStashes(repoRoot);
     await this.postMessage({ type: 'stashList', payload: { entries } });
   }
 
   private async handleStashChanges(payload: PayloadFor<'stashChanges'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
     const selectedPaths = payload.paths ? this.getSelectedPaths(payload.paths) ?? [] : undefined;
     if (selectedPaths?.length === 0) {
       await this.postNotification('error', 'Select at least one file to stash.');
@@ -593,17 +662,19 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     }
 
     const ok = await this.executeRepositoryAction('Stashing selected files...', async () => {
-      await this.repository.stashChanges(payload.repoRoot, payload.message, payload.includeUntracked, selectedPaths);
+      await this.repository.stashChanges(repoRoot, payload.message, payload.includeUntracked, selectedPaths);
     }, selectedPaths ? 'Selected files stashed.' : undefined);
     if (!ok) return;
-    const entries = await this.repository.listStashes(payload.repoRoot);
+    const entries = await this.repository.listStashes(repoRoot);
     await this.postMessage({ type: 'stashList', payload: { entries } });
   }
 
   private async handlePreviewStash(payload: PayloadFor<'previewStash'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const stashRef = assertStashRef(payload.ref);
     try {
       await this.withBusy('Opening stash preview...', async () => {
-        await this.repository.previewStash(payload.repoRoot, payload.ref);
+        await this.repository.previewStash(repoRoot, stashRef);
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -613,6 +684,8 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleApplyStash(payload: PayloadFor<'applyStash'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const stashRef = assertStashRef(payload.ref);
     const selectedPaths = payload.paths ? this.getSelectedPaths(payload.paths) ?? [] : undefined;
     if (selectedPaths?.length === 0) {
       await this.postNotification('error', 'Select at least one file to apply.');
@@ -620,54 +693,62 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     }
 
     const ok = await this.executeRepositoryAction(selectedPaths ? 'Applying selected stash files...' : 'Applying stash...', async () => {
-      await this.repository.applyStash(payload.repoRoot, payload.ref, selectedPaths);
+      await this.repository.applyStash(repoRoot, stashRef, selectedPaths);
     }, selectedPaths ? 'Selected stash files applied.' : undefined);
     if (!ok) return;
-    const entries = await this.repository.listStashes(payload.repoRoot);
+    const entries = await this.repository.listStashes(repoRoot);
     await this.postMessage({ type: 'stashList', payload: { entries } });
   }
 
   private async handlePopStash(payload: PayloadFor<'popStash'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const stashRef = assertStashRef(payload.ref);
     const selectedPaths = payload.paths ? this.getSelectedPaths(payload.paths) ?? [] : undefined;
     if (selectedPaths?.length === 0) {
       await this.postNotification('error', 'Select at least one file to pop.');
       return;
     }
 
-    const entriesBefore = selectedPaths ? await this.repository.listStashes(payload.repoRoot) : [];
-    const selectedStash = entriesBefore.find((entry) => entry.ref === payload.ref);
+    const entriesBefore = selectedPaths ? await this.repository.listStashes(repoRoot) : [];
+    const selectedStash = entriesBefore.find((entry) => entry.ref === stashRef);
     const isPartialPop = Boolean(selectedPaths && selectedStash?.files.length && selectedPaths.length < selectedStash.files.length);
 
     const ok = await this.executeRepositoryAction(selectedPaths ? 'Restoring selected stash files...' : 'Popping stash...', async () => {
-      await this.repository.popStash(payload.repoRoot, payload.ref, selectedPaths);
+      await this.repository.popStash(repoRoot, stashRef, selectedPaths);
     }, isPartialPop ? 'Selected files restored. The stash was kept because only part of it was selected.' : undefined);
     if (!ok) return;
-    const entries = await this.repository.listStashes(payload.repoRoot);
+    const entries = await this.repository.listStashes(repoRoot);
     await this.postMessage({ type: 'stashList', payload: { entries } });
   }
 
   private async handleDropStash(payload: PayloadFor<'dropStash'>): Promise<void> {
-    const confirmed = await vscode.window.showWarningMessage(`Drop stash ${payload.ref}?`, { modal: true }, 'Drop');
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const stashRef = assertStashRef(payload.ref);
+    const confirmed = await vscode.window.showWarningMessage(`Drop stash ${stashRef}?`, { modal: true }, 'Drop');
     if (confirmed !== 'Drop') return;
     await this.executeRepositoryAction('Dropping stash...', async () => {
-      await this.repository.dropStash(payload.repoRoot, payload.ref);
+      await this.repository.dropStash(repoRoot, stashRef);
     });
-    const entries = await this.repository.listStashes(payload.repoRoot);
+    const entries = await this.repository.listStashes(repoRoot);
     await this.postMessage({ type: 'stashList', payload: { entries } });
   }
 
   private async handleListWorktrees(payload: PayloadFor<'listWorktrees'>): Promise<void> {
-    const worktrees = await this.repository.listWorktrees(payload.repoRoot);
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const worktrees = await this.repository.listWorktrees(repoRoot);
     await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
   }
 
   private async handleAddWorktree(payload: PayloadFor<'addWorktree'>): Promise<void> {
     const { repoRoot, branch, createNew, worktreePath } = payload;
+    const trustedRepoRoot = await this.getTrustedRepoRoot(repoRoot);
+    const trustedBranch = createNew ? assertSafeBranchName(branch) : assertSafeGitRef(branch, 'branch');
+    const trustedWorktreePath = assertSafeAbsoluteFsPath(worktreePath, 'worktree path');
     try {
       await this.withBusy('Adding worktree...', async () => {
-        await this.repository.addWorktree(repoRoot, worktreePath.trim(), branch, createNew);
+        await this.repository.addWorktree(trustedRepoRoot, trustedWorktreePath, trustedBranch, createNew);
       });
-      const worktrees = await this.repository.listWorktrees(repoRoot);
+      const worktrees = await this.repository.listWorktrees(trustedRepoRoot);
       await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -678,12 +759,16 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
   private async handleRemoveWorktree(payload: PayloadFor<'removeWorktree'>): Promise<void> {
     const { repoRoot, path: worktreePath, force } = payload;
+    const { repoRoot: trustedRepoRoot, entry } = await this.getKnownWorktree(repoRoot, worktreePath);
+    if (entry.isMain) {
+      throw new Error('Cannot remove the main worktree.');
+    }
     try {
       await this.withBusy('Removing worktree...', async () => {
-        await this.repository.removeWorktree(repoRoot, worktreePath, force);
-        await this.repository.pruneWorktrees(repoRoot);
+        await this.repository.removeWorktree(trustedRepoRoot, entry.path, force);
+        await this.repository.pruneWorktrees(trustedRepoRoot);
       });
-      const worktrees = await this.repository.listWorktrees(repoRoot);
+      const worktrees = await this.repository.listWorktrees(trustedRepoRoot);
       await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -696,24 +781,31 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleOpenWorktreeInWindow(payload: PayloadFor<'openWorktreeInWindow'>): Promise<void> {
-    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(payload.path), { forceNewWindow: true });
+    const { entry } = await this.getKnownWorktree(payload.repoRoot, payload.path);
+    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(entry.path), { forceNewWindow: true });
     await this.postNotification('info', 'Worktree opened in a new window.');
   }
 
   private async handleRevealWorktreeInOs(payload: PayloadFor<'revealWorktreeInOs'>): Promise<void> {
-    await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(payload.path));
+    const { entry } = await this.getKnownWorktree(payload.repoRoot, payload.path);
+    await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(entry.path));
   }
 
   private async handleCopyWorktreePath(payload: PayloadFor<'copyWorktreePath'>): Promise<void> {
-    await vscode.env.clipboard.writeText(payload.path);
+    const { entry } = await this.getKnownWorktree(payload.repoRoot, payload.path);
+    await vscode.env.clipboard.writeText(entry.path);
     await this.postNotification('info', 'Worktree path copied to clipboard.');
   }
 
   private async handleLockWorktree(payload: PayloadFor<'lockWorktree'>): Promise<void> {
     const { repoRoot, path: worktreePath } = payload;
+    const { repoRoot: trustedRepoRoot, entry } = await this.getKnownWorktree(repoRoot, worktreePath);
+    if (entry.isMain) {
+      throw new Error('Cannot lock the main worktree.');
+    }
     try {
-      await this.repository.lockWorktree(repoRoot, worktreePath);
-      const worktrees = await this.repository.listWorktrees(repoRoot);
+      await this.repository.lockWorktree(trustedRepoRoot, entry.path);
+      const worktrees = await this.repository.listWorktrees(trustedRepoRoot);
       await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -724,9 +816,13 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
   private async handleUnlockWorktree(payload: PayloadFor<'unlockWorktree'>): Promise<void> {
     const { repoRoot, path: worktreePath } = payload;
+    const { repoRoot: trustedRepoRoot, entry } = await this.getKnownWorktree(repoRoot, worktreePath);
+    if (entry.isMain) {
+      throw new Error('Cannot unlock the main worktree.');
+    }
     try {
-      await this.repository.unlockWorktree(repoRoot, worktreePath);
-      const worktrees = await this.repository.listWorktrees(repoRoot);
+      await this.repository.unlockWorktree(trustedRepoRoot, entry.path);
+      const worktrees = await this.repository.listWorktrees(trustedRepoRoot);
       await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -737,11 +833,16 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
   private async handleMoveWorktree(payload: PayloadFor<'moveWorktree'>): Promise<void> {
     const { repoRoot, path: worktreePath, newPath } = payload;
+    const { repoRoot: trustedRepoRoot, entry } = await this.getKnownWorktree(repoRoot, worktreePath);
+    if (entry.isMain) {
+      throw new Error('Cannot move the main worktree.');
+    }
+    const trustedNewPath = assertSafeAbsoluteFsPath(newPath, 'new worktree path');
     try {
       await this.withBusy('Moving worktree...', async () => {
-        await this.repository.moveWorktree(repoRoot, worktreePath, newPath);
+        await this.repository.moveWorktree(trustedRepoRoot, entry.path, trustedNewPath);
       });
-      const worktrees = await this.repository.listWorktrees(repoRoot);
+      const worktrees = await this.repository.listWorktrees(trustedRepoRoot);
       await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -752,11 +853,14 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
   private async handleAddWorktreeAtCommit(payload: PayloadFor<'addWorktreeAtCommit'>): Promise<void> {
     const { repoRoot, worktreePath, commitHash } = payload;
+    const trustedRepoRoot = await this.getTrustedRepoRoot(repoRoot);
+    const trustedWorktreePath = assertSafeAbsoluteFsPath(worktreePath, 'worktree path');
+    const trustedCommitHash = assertCommitHash(commitHash);
     try {
       await this.withBusy('Adding detached worktree...', async () => {
-        await this.repository.addWorktreeAtCommit(repoRoot, worktreePath.trim(), commitHash.trim());
+        await this.repository.addWorktreeAtCommit(trustedRepoRoot, trustedWorktreePath, trustedCommitHash);
       });
-      const worktrees = await this.repository.listWorktrees(repoRoot);
+      const worktrees = await this.repository.listWorktrees(trustedRepoRoot);
       await this.postMessage({ type: 'worktreeList', payload: { entries: worktrees } });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -766,38 +870,46 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleContinueOperation(payload: PayloadFor<'continueOperation'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const state = assertRepoSpecialState(payload.state);
     await this.executeRepositoryAction('Continuing...', async () => {
-      await this.repository.continueOperation(payload.repoRoot, payload.state as import('../../core/models').RepoSpecialState);
+      await this.repository.continueOperation(repoRoot, state);
     });
   }
 
   private async handleSkipOperation(payload: PayloadFor<'skipOperation'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
     await this.executeRepositoryAction('Skipping...', async () => {
-      await this.repository.skipRebaseOperation(payload.repoRoot);
+      await this.repository.skipRebaseOperation(repoRoot);
     });
   }
 
   private async handleAbortOperation(payload: PayloadFor<'abortOperation'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const state = assertRepoSpecialState(payload.state);
     await this.executeRepositoryAction('Aborting...', async () => {
-      await this.repository.abortOperation(payload.repoRoot, payload.state as import('../../core/models').RepoSpecialState);
+      await this.repository.abortOperation(repoRoot, state);
     });
   }
 
   private async handlePullRepo(payload: PayloadFor<'pullRepo'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
     await this.executeRepositoryAction('Pulling...', async () => {
-      await this.repository.pull(payload.repoRoot);
+      await this.repository.pull(repoRoot);
     });
   }
 
   private async handlePushRepo(payload: PayloadFor<'pushRepo'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
     await this.executeRepositoryAction('Pushing...', async () => {
-      await this.repository.push(payload.repoRoot);
+      await this.repository.push(repoRoot);
     });
   }
 
   private async handleFetchRepo(payload: PayloadFor<'fetchRepo'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
     await this.executeRepositoryAction('Fetching...', async () => {
-      await this.fetchCoordinator.fetch(payload.repoRoot, {
+      await this.fetchCoordinator.fetch(repoRoot, {
         reason: 'webview-fetch',
         minimumIntervalMs: DUPLICATE_FETCH_WINDOW_MS
       });
@@ -805,43 +917,103 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleOpenFile(payload: PayloadFor<'openFile'>): Promise<void> {
-    const nodePath = await import('node:path');
-    const fullPath = vscode.Uri.file(nodePath.join(payload.repoRoot, payload.filePath));
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const filePath = assertSafeRelativeGitPath(payload.filePath);
+    const fullPath = vscode.Uri.file(path.join(repoRoot, filePath));
     const doc = await vscode.workspace.openTextDocument(fullPath);
     await vscode.window.showTextDocument(doc, { preserveFocus: false, preview: false });
   }
 
   private async handleCompareBranches(payload: PayloadFor<'compareBranches'>): Promise<void> {
-    const result = await this.repository.compareBranches(payload.repoRoot, payload.baseRef, payload.targetRef);
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const baseRef = assertSafeGitRef(payload.baseRef, 'base ref');
+    const targetRef = assertSafeGitRef(payload.targetRef, 'target ref');
+    const result = await this.repository.compareBranches(repoRoot, baseRef, targetRef);
     await this.postMessage({ type: 'branchCompareResult', payload: result });
   }
 
   private async handleListUndoEntries(payload: PayloadFor<'listUndoEntries'>): Promise<void> {
-    const entries = await this.repository.listUndoEntries(payload.repoRoot);
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const entries = await this.repository.listUndoEntries(repoRoot);
     await this.postMessage({ type: 'undoEntries', payload: { entries } });
   }
 
   private async handleUndoTo(payload: PayloadFor<'undoTo'>): Promise<void> {
+    const repoRoot = await this.getTrustedRepoRoot(payload.repoRoot);
+    const ref = assertReflogRef(payload.ref);
     const confirmed = await vscode.window.showWarningMessage(
-      `Undo to ${payload.ref}? This performs a hard reset and can discard uncommitted changes.`,
+      `Undo to ${ref}? This performs a hard reset and can discard uncommitted changes.`,
       { modal: true },
       'Undo'
     );
     if (confirmed !== 'Undo') return;
 
     await this.executeRepositoryAction('Undoing last operation...', async () => {
-      await this.repository.undoTo(payload.repoRoot, payload.ref);
+      await this.repository.undoTo(repoRoot, ref);
     });
   }
 
   // Remote/PR helpers moved to GitGraphUtils.ts
 
-  private getSelectedPaths(paths?: string[]): string[] | undefined {
-    if (!paths) {
-      return undefined;
+  private normalizeFilters(filters: Partial<GraphFilters>): Partial<GraphFilters> {
+    const normalized: Partial<GraphFilters> = {};
+
+    if (typeof filters.includeRemotes === 'boolean') {
+      normalized.includeRemotes = filters.includeRemotes;
     }
 
-    return paths.filter((filePath) => filePath.trim().length > 0);
+    if (typeof filters.limit === 'number' && Number.isFinite(filters.limit)) {
+      normalized.limit = Math.min(Math.max(Math.trunc(filters.limit), 50), 5_000);
+    }
+
+    if (typeof filters.search === 'string') {
+      normalized.search = filters.search.slice(0, 200);
+    }
+
+    if (typeof filters.author === 'string') {
+      normalized.author = filters.author.slice(0, 200);
+    }
+
+    return normalized;
+  }
+
+  private async getTrustedRepoRoot(repoRoot: string): Promise<string> {
+    const requested = assertSafeAbsoluteFsPath(repoRoot, 'repository root');
+    const resolved = await this.repository.resolveRepositoryRoot(requested);
+
+    if (normalizeFsPathForComparison(resolved) !== normalizeFsPathForComparison(requested)) {
+      throw new Error('Invalid repository root.');
+    }
+
+    return resolved;
+  }
+
+  private async getKnownWorktree(repoRoot: string, worktreePath: string): Promise<{ repoRoot: string; entry: WorktreeEntry }> {
+    const trustedRepoRoot = await this.getTrustedRepoRoot(repoRoot);
+    const requestedPath = assertSafeAbsoluteFsPath(worktreePath, 'worktree path');
+    const requestedKey = normalizeFsPathForComparison(requestedPath);
+    const entries = await this.repository.listWorktrees(trustedRepoRoot);
+    const entry = entries.find((candidate) => normalizeFsPathForComparison(candidate.path) === requestedKey);
+
+    if (!entry) {
+      throw new Error('Unknown worktree path.');
+    }
+
+    return { repoRoot: trustedRepoRoot, entry };
+  }
+
+  private validateDiffRequest(payload: PayloadFor<'openDiff'>): PayloadFor<'openDiff'> {
+    return {
+      repoRoot: assertSafeAbsoluteFsPath(payload.repoRoot, 'repository root'),
+      commitHash: assertSafeGitRef(payload.commitHash, 'commit ref'),
+      parentHash: payload.parentHash ? assertSafeGitRef(payload.parentHash, 'parent ref') : undefined,
+      filePath: assertSafeRelativeGitPath(payload.filePath),
+      originalPath: payload.originalPath ? assertSafeRelativeGitPath(payload.originalPath, 'original file path') : undefined
+    };
+  }
+
+  private getSelectedPaths(paths?: string[]): string[] | undefined {
+    return assertSafeRelativeGitPaths(paths);
   }
 
   private async executeRepositoryAction(label: string, action: () => Promise<void>, successMessage = 'Operation completed successfully.'): Promise<boolean> {
@@ -937,9 +1109,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async ensureHookScript(repoRoot: string, hooksPath: string, hookName: string): Promise<vscode.Uri> {
-    if (!/^[a-z0-9][a-z0-9-]*$/i.test(hookName)) {
-      throw new Error('Invalid hook name.');
-    }
+    const trustedHookName = assertSafeHookName(hookName);
 
     const [{ chmod }, nodePath] = await Promise.all([
       import('node:fs/promises'),
@@ -949,7 +1119,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     const hooksUri = vscode.Uri.file(hooksDirectory);
     await vscode.workspace.fs.createDirectory(hooksUri);
 
-    const scriptUri = vscode.Uri.file(nodePath.join(hooksDirectory, hookName));
+    const scriptUri = vscode.Uri.file(nodePath.join(hooksDirectory, trustedHookName));
     let exists = true;
     try {
       await vscode.workspace.fs.stat(scriptUri);
@@ -958,7 +1128,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     }
 
     if (!exists) {
-      await vscode.workspace.fs.writeFile(scriptUri, Buffer.from(buildHookTemplate(hookName), 'utf8'));
+      await vscode.workspace.fs.writeFile(scriptUri, Buffer.from(buildHookTemplate(trustedHookName), 'utf8'));
       if (process.platform !== 'win32') {
         await chmod(scriptUri.fsPath, 0o755).catch(() => undefined);
       }
