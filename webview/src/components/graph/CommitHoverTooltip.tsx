@@ -14,7 +14,7 @@ interface CommitHoverTooltipProps {
     onLeave: () => void;
 }
 
-export function CommitHoverTooltip({ data, onEnter, onLeave }: CommitHoverTooltipProps) {
+export function CommitHoverTooltip({ data, onEnter, onLeave }: Readonly<CommitHoverTooltipProps>) {
     const ref = useRef<HTMLDivElement>(null);
     const [style, setStyle] = useState<CSSProperties>({ visibility: 'hidden', left: data.x, top: data.y });
 
