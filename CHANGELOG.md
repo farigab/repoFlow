@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.5 - 2026-05-01
+
+- **Fixed:** Manual and automatic fetch now share a coordinator that deduplicates concurrent fetches and suppresses watcher-triggered graph refreshes caused by the fetch itself, avoiding repeated `Refreshing Git graph...` cycles after a single fetch.
+
+## Included commits - 1.2.5
+
+- [edc83528](https://github.com/farigab/repoFlow/commit/edc83528) - feat: implement GitFetchCoordinator for managing fetch operations and integrate with various components
+
 ## 1.2.4 - 2026-05-01
 
 - **Fixed:** Discarding a newly staged file (`A`) now correctly removes it from index/worktree via `git rm --force`, instead of attempting `restore` against `HEAD`.
