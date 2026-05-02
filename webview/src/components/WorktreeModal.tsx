@@ -108,15 +108,15 @@ export function WorktreeModal({ repoRoot, entries, branches, busy, worktreeError
     };
 
     const handleOpenInWindow = (path: string) => {
-        vscode.postMessage({ type: 'openWorktreeInWindow', payload: { path } });
+        vscode.postMessage({ type: 'openWorktreeInWindow', payload: { repoRoot, path } });
     };
 
     const handleRevealInOs = (path: string) => {
-        vscode.postMessage({ type: 'revealWorktreeInOs', payload: { path } });
+        vscode.postMessage({ type: 'revealWorktreeInOs', payload: { repoRoot, path } });
     };
 
     const handleCopyPath = (path: string) => {
-        vscode.postMessage({ type: 'copyWorktreePath', payload: { path } });
+        vscode.postMessage({ type: 'copyWorktreePath', payload: { repoRoot, path } });
     };
 
     const handleModeChange = (mode: AddMode) => {

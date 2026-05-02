@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.7 - 2026-05-02
+
+- **Added:** Git blame hover actions now support opening commit diffs directly, with stricter validation around commit and file inputs before invoking Git operations.
+- **Added:** The graph webview now has a dedicated toolbar and repository status banner, plus a refactored graph UI structure with focused components and updated styling.
+- **Changed:** Git command execution, operation parsing, and input validation were split into dedicated utilities with expanded automated test coverage and CI checks.
+
+## Included commits - 1.2.7
+
+- [04b1f56](https://github.com/farigab/repoFlow/commit/04b1f56) - feat(blame): enhance GitBlameController with commit diff functionality and validation
+- [e1a2d52](https://github.com/farigab/repoFlow/commit/e1a2d52) - feat(graph): add GraphToolbar and RepoStatusBanner components with styles
+- [6257dc7](https://github.com/farigab/repoFlow/commit/6257dc7) - feat: Add Git input validation utilities and tests
+
 ## 1.2.6 - 2026-05-02
 
 - **Added:** Repository Settings now supports configuring `core.hooksPath` directly from the UI.

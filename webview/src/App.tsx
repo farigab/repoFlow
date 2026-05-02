@@ -144,7 +144,7 @@ export function App() {
                     vscode.postMessage({ type: 'applyFilters', payload: deferredFilters });
                 });
             }
-        }, 180);
+        }, 280);
 
         return () => window.clearTimeout(timeoutId);
     }, [deferredFilters, snapshot]);
