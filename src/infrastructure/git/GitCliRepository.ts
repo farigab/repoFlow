@@ -47,7 +47,9 @@ const HASH_SEARCH_PATTERN = /^[0-9a-f]{4,40}$/i;
 
 export class GitCliRepository implements GitRepository {
   private readonly graphCache = new GitCache<GraphSnapshot>(3_000);
+  private readonly graphInFlight = new Map<string, Promise<GraphSnapshot>>();
   private readonly gitRunner: GitCommandRunner;
+  private graphCacheVersion = 0;
 
   public constructor(
     private readonly output: vscode.OutputChannel,
@@ -57,7 +59,13 @@ export class GitCliRepository implements GitRepository {
   }
 
   public clearTransientCaches(): void {
+    this.clearGraphCaches();
+  }
+
+  private clearGraphCaches(): void {
+    this.graphCacheVersion += 1;
     this.graphCache.clear();
+    this.graphInFlight.clear();
   }
 
   public async resolveRepositoryRoot(preferredPath?: string): Promise<string> {
@@ -92,6 +100,21 @@ export class GitCliRepository implements GitRepository {
       return cached;
     }
 
+    const inFlight = this.graphInFlight.get(cacheKey);
+    if (inFlight) {
+      return inFlight;
+    }
+
+    const request = this.loadGraphSnapshot(repoRoot, filters, cacheKey, this.graphCacheVersion);
+    this.graphInFlight.set(cacheKey, request);
+    try {
+      return await request;
+    } finally {
+      this.graphInFlight.delete(cacheKey);
+    }
+  }
+
+  private async loadGraphSnapshot(repoRoot: string, filters: GraphFilters, cacheKey: string, cacheVersion: number): Promise<GraphSnapshot> {
     const branchesPromise = this.getBranches(repoRoot);
     const localChangesPromise = this.getLocalChanges(repoRoot);
     const search = filters.search?.trim();
@@ -171,7 +194,9 @@ export class GitCliRepository implements GitRepository {
       worktreeHeads
     };
 
-    this.graphCache.set(cacheKey, snapshot);
+    if (cacheVersion === this.graphCacheVersion) {
+      this.graphCache.set(cacheKey, snapshot);
+    }
     return snapshot;
   }
 
@@ -284,12 +309,12 @@ export class GitCliRepository implements GitRepository {
 
   public async stageFile(repoRoot: string, targetPath: string): Promise<void> {
     await this.runGit(repoRoot, ['add', '--', targetPath]);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async unstageFile(repoRoot: string, targetPath: string): Promise<void> {
     await this.runGit(repoRoot, ['restore', '--staged', '--', targetPath]);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async discardFile(repoRoot: string, targetPath: string, tracked: boolean, stagedAddition = false): Promise<void> {
@@ -301,7 +326,7 @@ export class GitCliRepository implements GitRepository {
       await this.runGit(repoRoot, ['clean', '-fd', '--', targetPath]);
     }
 
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async commit(repoRoot: string, message: string, amend = false): Promise<void> {
@@ -311,7 +336,7 @@ export class GitCliRepository implements GitRepository {
     }
     args.push('-m', message);
     await this.runGit(repoRoot, args);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async createBranch(repoRoot: string, name: string, fromRef?: string): Promise<void> {
@@ -349,29 +374,29 @@ export class GitCliRepository implements GitRepository {
       await this.runGit(repoRoot, ['checkout', '-b', name]);
     }
 
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async deleteBranch(repoRoot: string, name: string, force = false): Promise<void> {
     await this.runGit(repoRoot, ['branch', force ? '-D' : '-d', '--', name]);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async deleteRemoteBranch(repoRoot: string, remote: string, name: string): Promise<void> {
     await this.runGit(repoRoot, ['push', remote, '--delete', name]);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async checkout(repoRoot: string, ref: string): Promise<void> {
     const remoteBranch = this.parseRemoteBranchRef(ref);
     if (remoteBranch) {
       await this.checkoutRemoteBranch(repoRoot, remoteBranch.remoteRef, remoteBranch.localName);
-      this.graphCache.clear();
+      this.clearGraphCaches();
       return;
     }
 
     await this.runGit(repoRoot, ['checkout', ref]);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async merge(repoRoot: string, sourceBranch: string): Promise<void> {
@@ -389,7 +414,7 @@ export class GitCliRepository implements GitRepository {
     }
 
     await this.runGit(repoRoot, ['merge', sanitized]);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async fetch(repoRoot: string, options?: { quiet?: boolean }): Promise<void> {
@@ -398,32 +423,32 @@ export class GitCliRepository implements GitRepository {
       args.push('--quiet');
     }
     await this.runGit(repoRoot, args, { logCommand: options?.quiet !== true });
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async pull(repoRoot: string): Promise<void> {
     await this.runGit(repoRoot, ['pull']);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async push(repoRoot: string): Promise<void> {
     await this.runGit(repoRoot, ['push']);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async cherryPick(repoRoot: string, commitHash: string): Promise<void> {
     await this.runGit(repoRoot, ['cherry-pick', commitHash]);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async revert(repoRoot: string, commitHash: string): Promise<void> {
     await this.runGit(repoRoot, ['revert', '--no-edit', commitHash]);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async dropCommit(repoRoot: string, commitHash: string): Promise<void> {
     await this.runGit(repoRoot, ['rebase', '--onto', `${commitHash}^`, commitHash]);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async compareBranches(repoRoot: string, baseRef: string, targetRef: string): Promise<BranchCompareResult> {
@@ -462,17 +487,17 @@ export class GitCliRepository implements GitRepository {
 
   public async undoTo(repoRoot: string, ref: string): Promise<void> {
     await this.runGit(repoRoot, ['reset', '--hard', ref]);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async rebase(repoRoot: string, onto: string): Promise<void> {
     await this.runGit(repoRoot, ['rebase', onto]);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async resetTo(repoRoot: string, commitHash: string, mode: 'soft' | 'mixed' | 'hard'): Promise<void> {
     await this.runGit(repoRoot, ['reset', `--${mode}`, commitHash]);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async openDiff(request: DiffRequest): Promise<void> {
@@ -509,12 +534,12 @@ export class GitCliRepository implements GitRepository {
 
   public async setGitUserName(repoRoot: string, name: string): Promise<void> {
     await this.runGit(repoRoot, ['config', 'user.name', name]);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async setGitUserEmail(repoRoot: string, email: string): Promise<void> {
     await this.runGit(repoRoot, ['config', 'user.email', email]);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async setGitHooksPath(repoRoot: string, hooksPath: string): Promise<void> {
@@ -524,12 +549,12 @@ export class GitCliRepository implements GitRepository {
     } else {
       await this.runGit(repoRoot, ['config', '--unset', 'core.hooksPath']).catch(() => undefined);
     }
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async setRemoteUrl(repoRoot: string, remoteName: string, url: string): Promise<void> {
     await this.runGit(repoRoot, ['remote', 'set-url', remoteName, url]);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   private async listHookScripts(repoRoot: string, hooksPath: string): Promise<string[]> {
@@ -588,27 +613,27 @@ export class GitCliRepository implements GitRepository {
       args.push('--', ...selectedPaths);
     }
     await this.runGit(repoRoot, args);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async applyStash(repoRoot: string, ref: string, paths?: string[]): Promise<void> {
     const selectedPaths = this.normalizePathList(paths);
     if (selectedPaths.length === 0) {
       await this.runGit(repoRoot, ['stash', 'apply', ref]);
-      this.graphCache.clear();
+      this.clearGraphCaches();
       return;
     }
 
     const files = await this.listStashFiles(repoRoot, ref).catch(() => []);
     await this.restoreStashPaths(repoRoot, ref, selectedPaths, files);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async popStash(repoRoot: string, ref: string, paths?: string[]): Promise<void> {
     const selectedPaths = this.normalizePathList(paths);
     if (selectedPaths.length === 0) {
       await this.runGit(repoRoot, ['stash', 'pop', ref]);
-      this.graphCache.clear();
+      this.clearGraphCaches();
       return;
     }
 
@@ -621,12 +646,12 @@ export class GitCliRepository implements GitRepository {
       await this.runGit(repoRoot, ['stash', 'drop', ref]);
     }
 
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async dropStash(repoRoot: string, ref: string): Promise<void> {
     await this.runGit(repoRoot, ['stash', 'drop', ref]);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async previewStash(repoRoot: string, ref: string): Promise<void> {
@@ -719,7 +744,7 @@ export class GitCliRepository implements GitRepository {
       args.push(branch);
     }
     await this.runGit(repoRoot, args);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async removeWorktree(repoRoot: string, worktreePath: string, force = false): Promise<void> {
@@ -729,7 +754,7 @@ export class GitCliRepository implements GitRepository {
     }
     args.push(worktreePath);
     await this.runGit(repoRoot, args);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async pruneWorktrees(repoRoot: string): Promise<void> {
@@ -746,12 +771,12 @@ export class GitCliRepository implements GitRepository {
 
   public async moveWorktree(repoRoot: string, worktreePath: string, newPath: string): Promise<void> {
     await this.runGit(repoRoot, ['worktree', 'move', worktreePath, newPath]);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async addWorktreeAtCommit(repoRoot: string, worktreePath: string, commitHash: string): Promise<void> {
     await this.runGit(repoRoot, ['worktree', 'add', '--detach', worktreePath, commitHash]);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async continueOperation(repoRoot: string, state: RepoSpecialState): Promise<void> {
@@ -771,7 +796,7 @@ export class GitCliRepository implements GitRepository {
       default:
         break;
     }
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async abortOperation(repoRoot: string, state: RepoSpecialState): Promise<void> {
@@ -794,12 +819,12 @@ export class GitCliRepository implements GitRepository {
       default:
         break;
     }
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   public async skipRebaseOperation(repoRoot: string): Promise<void> {
     await this.runGit(repoRoot, ['rebase', '--skip']);
-    this.graphCache.clear();
+    this.clearGraphCaches();
   }
 
   // openFile is primarily handled on the extension host side via GitGraphViewProvider.
