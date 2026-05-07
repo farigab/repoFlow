@@ -181,8 +181,11 @@ select:focus {
   display: flex;
   flex-direction: column;
   gap: 0;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
+  container-type: inline-size;
+  container-name: sidebar;
 }
 
 .changes {
@@ -198,6 +201,14 @@ select:focus {
 
 .details,
 .changes {
+  display: flex;
+  flex-direction: column;
+}
+
+.details__scroll-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
@@ -337,15 +348,7 @@ select:focus {
   background: color-mix(in srgb, var(--bg) 46%, transparent);
 }
 
-.details__files {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.42rem;
-  padding: 0.65rem 0.85rem 0.85rem;
-}
+
 
 .details__file-summary {
   flex-shrink: 0;
@@ -378,76 +381,83 @@ select:focus {
   border-color: color-mix(in srgb, var(--danger) 28%, transparent);
 }
 
-.details__analysis {
-  flex-shrink: 0;
+.details__tabs {
   display: flex;
-  flex-direction: column;
-  min-height: 0;
-  gap: 0.55rem;
-  margin: 0.8rem 0.85rem 0;
-  padding: 0.75rem 0.8rem;
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--panel) 58%, var(--bg) 42%);
-  overflow: hidden;
+  align-items: stretch;
+  border-bottom: 1px solid var(--panel-border);
+  margin: 0.65rem 0.85rem 0;
 }
 
-.details__section-heading {
-  min-width: 0;
-}
-
-.details__section-toggle {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.42rem;
-  width: 100%;
-  padding: 0;
-  text-align: left;
+.details__tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
   border: none;
+  border-bottom: 2px solid transparent;
   background: transparent;
-  color: var(--text);
+  color: var(--muted-strong);
+  margin-bottom: -1px;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
-.details__section-toggle:hover {
+.details__tab-btn:hover {
+  color: var(--text);
   border-color: transparent;
   background: transparent;
+  border-bottom-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
-.details__section-toggle .codicon {
-  margin-top: 0.18rem;
+.details__tab-btn--active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+.details__tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.3rem;
+  padding: 0.08rem 0.3rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-border) 90%, transparent);
+  font-size: 0.7rem;
+  font-weight: 700;
   color: var(--muted);
-  font-size: 0.9rem;
 }
 
-.details__section-toggle span {
-  min-width: 0;
-}
-
-.details__section-toggle h3 {
-  margin: 0;
-}
-
-.details__analysis-header {
+.details__tab-panel {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.75rem 0.85rem 0.85rem;
+}
+
+.details__tab-panel--files {
+  gap: 0.42rem;
 }
 
 .details__analysis-controls {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.45rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.65rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--panel-border);
+  min-width: 0;
 }
 
 .details__analysis-model-picker {
-  display: grid;
-  gap: 0.2rem;
-  min-width: min(100%, 16rem);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   color: var(--muted);
   font-size: 0.74rem;
   font-weight: 700;
+  min-width: 0;
 }
 
 .details__analysis-model-btn {
@@ -455,8 +465,7 @@ select:focus {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  min-width: 0;
-  width: 100%;
+  min-width: 8rem;
   min-height: 2rem;
   padding: 0 0.65rem;
 }
@@ -544,12 +553,7 @@ select:focus {
   line-height: 1.5;
 }
 
-.details__analysis-scroll {
-  min-height: 0;
-  max-height: min(40vh, 24rem);
-  overflow: auto;
-  padding-right: 0.15rem;
-}
+
 
 .details__analysis-mode-switch {
   display: inline-flex;
@@ -589,10 +593,7 @@ select:focus {
   font-size: 0.76rem;
 }
 
-.details__analysis-header h3 {
-  font-size: 0.96rem;
-  font-weight: 650;
-}
+
 
 .details__analysis-meta {
   display: flex;
@@ -696,7 +697,9 @@ select:focus {
 .details__analyze-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.35rem;
+  min-width: 0;
   min-height: 1.9rem;
   padding: 0 0.7rem;
   border-color: color-mix(in srgb, var(--accent) 35%, var(--panel-border) 65%);
@@ -704,36 +707,68 @@ select:focus {
   color: var(--text);
 }
 
-.details__files-section {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  margin: 0.8rem 0.85rem 0.85rem;
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--panel) 56%, var(--bg) 44%);
+.details__analyze-btn span {
+  min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.details__files-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.75rem 0.8rem;
-  border-bottom: 1px solid var(--panel-border);
-}
-
-.details__files-count {
-  flex-shrink: 0;
-  color: var(--muted);
-  font-size: 0.76rem;
-  font-weight: 700;
-}
 
 .details__analyze-btn .codicon {
   font-size: 0.95rem;
+}
+
+@container sidebar (max-width: 34rem) {
+
+  .details__header-main {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .panel__header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .details__analysis-controls {
+    width: 100%;
+  }
+
+  .details__analysis-actions {
+    justify-content: flex-start;
+  }
+
+  .details__meta-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container sidebar (max-width: 26rem) {
+  .details__analysis-mode-switch {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+    border-radius: 10px;
+  }
+
+  .details__analysis-mode-btn,
+  .details__analyze-btn {
+    width: 100%;
+  }
+
+  .details__analysis-mode-btn {
+    text-align: left;
+  }
+
+  .details__analysis-model-picker {
+    width: 100%;
+  }
+
+  .details__analysis-model-btn {
+    width: 100%;
+    min-width: 0;
+  }
 }
 
 .changes__list {
