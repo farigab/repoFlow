@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.8 - 2026-05-02
+
+- **Added:** Commit Details now includes on-demand AI commit analysis powered by GitHub Copilot models, with executive/technical review modes, analysis caching, diff truncation handling, and inline actions to copy the result or open it as a commit note.
+- **Added:** RepoFlow now lets users choose the model used for commit analysis, including an `Auto` option and an in-app model picker modal that shows provider, family, version, description, and the currently selected model.
+- **Changed:** The Commit Details sidebar was refined to better support long AI reviews, including internal scrolling plus collapsible analysis and changed-files sections to reduce layout pressure.
+
+## Included commits - 1.2.8
+
+- [36e956f](https://github.com/farigab/repoFlow/commit/36e956f) - feat: add model selection for commit analysis and UI enhancements
+- [312adeb](https://github.com/farigab/repoFlow/commit/312adeb) - feat: enhance commit analysis with mode selection and UI improvements
+- [746efcf](https://github.com/farigab/repoFlow/commit/746efcf) - feat: implement commit analysis feature with AI integration and UI enhancements
+
 ## 1.2.7 - 2026-05-02
 
 - **Added:** Git blame hover actions now support opening commit diffs directly, with stricter validation around commit and file inputs before invoking Git operations.
