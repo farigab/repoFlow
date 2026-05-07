@@ -296,8 +296,7 @@ function getSelectedModelLabel(selection: string, options: CommitAnalysisModelOp
 
 export function CommitDetails({ detail, repoRoot, analysisMode, analysisModelSelection, analysisModelOptions, analysisState, onChangeAnalysisMode, onChooseAnalysisModel, onAnalyze, onCopyAnalysis, onInsertAnalysisNote, onOpenDiff, onClose }: Readonly<CommitDetailsProps>) {
     const tree = useMemo(() => detail ? buildTree(detail.files) : null, [detail]);
-    const [analysisExpanded, setAnalysisExpanded] = useState(true);
-    const [filesExpanded, setFilesExpanded] = useState(false);
+    const [activeTab, setActiveTab] = useState<'analysis' | 'files'>('files');
 
     if (!detail || !tree) {
         return null;
@@ -321,16 +320,6 @@ export function CommitDetails({ detail, repoRoot, analysisMode, analysisModelSel
                         <h2>{detail.subject}</h2>
                     </div>
                     <div className="panel__header-actions">
-                        <button
-                            type="button"
-                            className="details__analyze-btn"
-                            onClick={() => onAnalyze(detail, analysisMode)}
-                            disabled={analysisState.status === 'loading' || !repoRoot}
-                            title="Generate AI analysis for this commit"
-                        >
-                            <i className="codicon codicon-sparkle" aria-hidden="true" />
-                            <span>{analysisButtonLabel}</span>
-                        </button>
                         <button
                             type="button"
                             className="panel__settings-btn"
@@ -371,105 +360,103 @@ export function CommitDetails({ detail, repoRoot, analysisMode, analysisModelSel
                 </div>
             </header>
 
-            {detail.body ? <pre className="details__body">{detail.body}</pre> : null}
+            <div className="details__scroll-body">
+                {detail.body ? <pre className="details__body">{detail.body}</pre> : null}
 
-            <div className="details__file-summary" aria-label="Commit file summary">
-                <span className="details__file-summary-item details__file-summary-item--add">
-                    <i className="codicon codicon-add" aria-hidden="true" />
-                    {detail.stats.additions} additions
-                </span>
-                <span className="details__file-summary-item details__file-summary-item--del">
-                    <i className="codicon codicon-remove" aria-hidden="true" />
-                    {detail.stats.deletions} deletions
-                </span>
-                <span className="details__file-summary-item">
-                    <i className="codicon codicon-files" aria-hidden="true" />
-                    {detail.stats.filesChanged} files
-                </span>
-            </div>
-
-            <section className="details__analysis" aria-label="AI analysis">
-                <div className="details__analysis-header">
-                    <div className="details__section-heading">
-                        <button
-                            type="button"
-                            className="details__section-toggle"
-                            onClick={() => setAnalysisExpanded((value) => !value)}
-                            aria-expanded={analysisExpanded}
-                            aria-controls="commit-analysis-panel"
-                        >
-                            <i className={`codicon ${analysisExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} aria-hidden="true" />
-                            <span>
-                                <span className="panel__eyebrow">AI Analysis</span>
-                                <h3>Commit Review</h3>
-                            </span>
-                        </button>
-                    </div>
-                    <div className="details__analysis-controls">
-                        <div className="details__analysis-mode-switch" role="tablist" aria-label="Analysis mode">
-                            <button
-                                type="button"
-                                className={`details__analysis-mode-btn${analysisMode === 'executive' ? ' details__analysis-mode-btn--active' : ''}`}
-                                onClick={() => onChangeAnalysisMode('executive')}
-                            >
-                                Executive Summary
-                            </button>
-                            <button
-                                type="button"
-                                className={`details__analysis-mode-btn${analysisMode === 'technical' ? ' details__analysis-mode-btn--active' : ''}`}
-                                onClick={() => onChangeAnalysisMode('technical')}
-                            >
-                                Technical Review
-                            </button>
-                        </div>
-                        <div className="details__analysis-model-picker">
-                            <span>Model</span>
-                            <button type="button" className="details__analysis-model-btn" onClick={onChooseAnalysisModel}>
-                                <span>{selectedModelLabel}</span>
-                                <i className="codicon codicon-chevron-down" aria-hidden="true" />
-                            </button>
-                        </div>
-                        {analysisState.status === 'success' ? (
-                            <div className="details__analysis-actions">
-                                <button type="button" className="details__analysis-action-btn" onClick={() => onCopyAnalysis(analysisState.result)}>
-                                    <i className="codicon codicon-copy" aria-hidden="true" />
-                                    <span>Copy analysis</span>
-                                </button>
-                                <button type="button" className="details__analysis-action-btn" onClick={() => onInsertAnalysisNote(detail, analysisState.result)}>
-                                    <i className="codicon codicon-note" aria-hidden="true" />
-                                    <span>Insert into commit note</span>
-                                </button>
-                            </div>
-                        ) : null}
-                    </div>
+                <div className="details__file-summary" aria-label="Commit file summary">
+                    <span className="details__file-summary-item details__file-summary-item--add">
+                        <i className="codicon codicon-add" aria-hidden="true" />
+                        {detail.stats.additions} additions
+                    </span>
+                    <span className="details__file-summary-item details__file-summary-item--del">
+                        <i className="codicon codicon-remove" aria-hidden="true" />
+                        {detail.stats.deletions} deletions
+                    </span>
+                    <span className="details__file-summary-item">
+                        <i className="codicon codicon-files" aria-hidden="true" />
+                        {detail.stats.filesChanged} files
+                    </span>
                 </div>
-                {analysisExpanded ? (
-                    <div id="commit-analysis-panel" className="details__analysis-scroll">
-                        {renderAnalysisContent(analysisState)}
-                    </div>
-                ) : null}
-            </section>
 
-            <section className="details__files-section" aria-label="Changed files">
-                <div className="details__files-header">
+                <div className="details__tabs" role="tablist" aria-label="Commit detail sections">
                     <button
                         type="button"
-                        className="details__section-toggle"
-                        onClick={() => setFilesExpanded((value) => !value)}
-                        aria-expanded={filesExpanded}
+                        role="tab"
+                        className={`details__tab-btn${activeTab === 'files' ? ' details__tab-btn--active' : ''}`}
+                        aria-selected={activeTab === 'files'}
                         aria-controls="commit-files-panel"
+                        onClick={() => setActiveTab('files')}
                     >
-                        <i className={`codicon ${filesExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} aria-hidden="true" />
-                        <span>
-                            <span className="panel__eyebrow">Changed Files</span>
-                            <h3>Files in this commit</h3>
-                        </span>
+                        <i className="codicon codicon-files" aria-hidden="true" />
+                        <span>Changed Files</span>
+                        <span className="details__tab-count">{detail.stats.filesChanged}</span>
                     </button>
-                    <span className="details__files-count">{detail.stats.filesChanged} files</span>
+                    <button
+                        type="button"
+                        role="tab"
+                        className={`details__tab-btn${activeTab === 'analysis' ? ' details__tab-btn--active' : ''}`}
+                        aria-selected={activeTab === 'analysis'}
+                        aria-controls="commit-analysis-panel"
+                        onClick={() => setActiveTab('analysis')}
+                    >
+                        <i className="codicon codicon-sparkle" aria-hidden="true" />
+                        <span>AI Analysis</span>
+                    </button>
                 </div>
 
-                {filesExpanded ? (
-                    <div id="commit-files-panel" className="details__files">
+                {activeTab === 'analysis' ? (
+                    <div id="commit-analysis-panel" role="tabpanel" className="details__tab-panel details__tab-panel--analysis">
+                        <div className="details__analysis-controls">
+                            <div className="details__analysis-mode-switch" role="tablist" aria-label="Analysis mode">
+                                <button
+                                    type="button"
+                                    className={`details__analysis-mode-btn${analysisMode === 'executive' ? ' details__analysis-mode-btn--active' : ''}`}
+                                    onClick={() => onChangeAnalysisMode('executive')}
+                                >
+                                    Executive Summary
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`details__analysis-mode-btn${analysisMode === 'technical' ? ' details__analysis-mode-btn--active' : ''}`}
+                                    onClick={() => onChangeAnalysisMode('technical')}
+                                >
+                                    Technical Review
+                                </button>
+                            </div>
+                            <div className="details__analysis-model-picker">
+                                <span>Model</span>
+                                <button type="button" className="details__analysis-model-btn" onClick={onChooseAnalysisModel}>
+                                    <span>{selectedModelLabel}</span>
+                                    <i className="codicon codicon-chevron-down" aria-hidden="true" />
+                                </button>
+                            </div>
+                            <button
+                                type="button"
+                                className="details__analyze-btn"
+                                onClick={() => onAnalyze(detail, analysisMode)}
+                                disabled={analysisState.status === 'loading' || !repoRoot}
+                                title="Generate AI analysis for this commit"
+                            >
+                                <i className="codicon codicon-sparkle" aria-hidden="true" />
+                                <span>{analysisButtonLabel}</span>
+                            </button>
+                            {analysisState.status === 'success' ? (
+                                <div className="details__analysis-actions">
+                                    <button type="button" className="details__analysis-action-btn" onClick={() => onCopyAnalysis(analysisState.result)}>
+                                        <i className="codicon codicon-copy" aria-hidden="true" />
+                                        <span>Copy analysis</span>
+                                    </button>
+                                    <button type="button" className="details__analysis-action-btn" onClick={() => onInsertAnalysisNote(detail, analysisState.result)}>
+                                        <i className="codicon codicon-note" aria-hidden="true" />
+                                        <span>Insert into commit note</span>
+                                    </button>
+                                </div>
+                            ) : null}
+                        </div>
+                        {renderAnalysisContent(analysisState)}
+                    </div>
+                ) : (
+                    <div id="commit-files-panel" role="tabpanel" className="details__tab-panel details__tab-panel--files">
                         {tree.files.map((file) => renderCommitFile(file, detail, onOpenDiff))}
                         {[...tree.children.entries()].map(([name, child]) => (
                             <FolderGroup
@@ -482,8 +469,8 @@ export function CommitDetails({ detail, repoRoot, analysisMode, analysisModelSel
                             />
                         ))}
                     </div>
-                ) : null}
-            </section>
+                )}
+            </div>
         </section>
     );
 }
