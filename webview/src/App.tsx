@@ -1,7 +1,8 @@
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import type { BranchCompareResult, CommitAnalysisMode, CommitAnalysisResult, CommitDetail, CommitFileChange, CommitSummary, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, UndoEntry, WorkingTreeFile, WorktreeEntry } from '../../src/core/models';
+import type { BranchCompareResult, CommitAnalysisMode, CommitAnalysisModelOption, CommitAnalysisResult, CommitDetail, CommitFileChange, CommitSummary, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, UndoEntry, WorkingTreeFile, WorktreeEntry } from '../../src/core/models';
 import type { ExtensionToWebviewMessage } from '../../src/shared/protocol';
 import { BranchCompareModal } from './components/BranchCompareModal';
+import { CommitAnalysisModelModal } from './components/CommitAnalysisModelModal';
 import { CommitDetails } from './components/CommitDetails';
 import { CreatePRModal } from './components/CreatePRModal';
 import { DeleteBranchesModal } from './components/DeleteBranchesModal';
@@ -26,8 +27,8 @@ type CommitAnalysisViewState =
     | { status: 'success'; result: CommitAnalysisResult }
     | { status: 'error'; message: string };
 
-function getAnalysisKey(commitHash: string, mode: CommitAnalysisMode): string {
-    return `${commitHash}:${mode}`;
+function getAnalysisKey(commitHash: string, mode: CommitAnalysisMode, modelSelection: string): string {
+    return `${commitHash}:${mode}:${modelSelection}`;
 }
 
 const DEFAULT_FILTERS: GraphFilters = {
@@ -61,7 +62,10 @@ export function App() {
     const [worktreeError, setWorktreeError] = useState<{ message: string; path?: string; canForce?: boolean } | null>(null);
     const [isUncommittedSelected, setIsUncommittedSelected] = useState(false);
     const [isCommitDetailsOpen, setIsCommitDetailsOpen] = useState(false);
+    const [analysisModelModalOpen, setAnalysisModelModalOpen] = useState(false);
     const [analysisMode, setAnalysisMode] = useState<CommitAnalysisMode>('technical');
+    const [analysisModelSelection, setAnalysisModelSelection] = useState('auto');
+    const [analysisModelOptions, setAnalysisModelOptions] = useState<CommitAnalysisModelOption[]>([]);
     const [analysisByCommit, setAnalysisByCommit] = useState<Record<string, CommitAnalysisViewState>>({});
     const requestedCommitHashRef = useRef<string | undefined>(undefined);
 
@@ -91,14 +95,18 @@ export function App() {
                 case 'commitAnalysis':
                     setAnalysisByCommit((current) => ({
                         ...current,
-                        [getAnalysisKey(message.payload.commitHash, message.payload.mode)]: { status: 'success', result: message.payload }
+                        [getAnalysisKey(message.payload.commitHash, message.payload.mode, message.payload.modelSelection)]: { status: 'success', result: message.payload }
                     }));
                     return;
                 case 'commitAnalysisError':
                     setAnalysisByCommit((current) => ({
                         ...current,
-                        [getAnalysisKey(message.payload.commitHash, message.payload.mode)]: { status: 'error', message: message.payload.message }
+                        [getAnalysisKey(message.payload.commitHash, message.payload.mode, message.payload.modelSelection)]: { status: 'error', message: message.payload.message }
                     }));
+                    return;
+                case 'commitAnalysisModels':
+                    setAnalysisModelSelection(message.payload.selection);
+                    setAnalysisModelOptions(message.payload.options);
                     return;
                 case 'revealCommit': {
                     const { commitHash } = message.payload;
@@ -229,14 +237,24 @@ export function App() {
 
         setAnalysisByCommit((current) => ({
             ...current,
-            [getAnalysisKey(detail.hash, mode)]: { status: 'loading' }
+            [getAnalysisKey(detail.hash, mode, analysisModelSelection)]: { status: 'loading' }
         }));
 
         vscode.postMessage({
             type: 'analyzeCommit',
             payload: { repoRoot: snapshot.repoRoot, commitHash: detail.hash, mode }
         });
-    }, [snapshot]);
+    }, [snapshot, analysisModelSelection]);
+
+    const handleChooseAnalysisModel = useCallback((): void => {
+        setAnalysisModelModalOpen(true);
+    }, []);
+
+    const handleSelectAnalysisModel = useCallback((selection: string): void => {
+        setAnalysisModelSelection(selection);
+        setAnalysisModelModalOpen(false);
+        vscode.postMessage({ type: 'setCommitAnalysisModelSelection', payload: { selection } });
+    }, []);
 
     const handleCopyAnalysis = useCallback((result: CommitAnalysisResult): void => {
         vscode.postMessage({ type: 'copyCommitAnalysis', payload: { content: result.content } });
@@ -381,7 +399,7 @@ export function App() {
     }, [snapshot]);
 
     const selectedCommitAnalysis = selectedCommit
-        ? (analysisByCommit[getAnalysisKey(selectedCommit.hash, analysisMode)] ?? { status: 'idle' })
+        ? (analysisByCommit[getAnalysisKey(selectedCommit.hash, analysisMode, analysisModelSelection)] ?? { status: 'idle' })
         : { status: 'idle' } satisfies CommitAnalysisViewState;
 
     if (!snapshot) {
@@ -440,8 +458,11 @@ export function App() {
                                 detail={selectedCommit}
                                 repoRoot={snapshot.repoRoot}
                                 analysisMode={analysisMode}
+                                analysisModelSelection={analysisModelSelection}
+                                analysisModelOptions={analysisModelOptions}
                                 analysisState={selectedCommitAnalysis}
                                 onChangeAnalysisMode={setAnalysisMode}
+                                onChooseAnalysisModel={handleChooseAnalysisModel}
                                 onAnalyze={handleAnalyzeCommit}
                                 onCopyAnalysis={handleCopyAnalysis}
                                 onInsertAnalysisNote={handleInsertAnalysisNote}
@@ -546,6 +567,14 @@ export function App() {
                     snapshot={snapshot}
                     entries={undoEntries}
                     onClose={() => setUndoOpen(false)}
+                />
+            ) : null}
+            {analysisModelModalOpen ? (
+                <CommitAnalysisModelModal
+                    currentSelection={analysisModelSelection}
+                    options={analysisModelOptions}
+                    onSelect={handleSelectAnalysisModel}
+                    onClose={() => setAnalysisModelModalOpen(false)}
                 />
             ) : null}
         </main>

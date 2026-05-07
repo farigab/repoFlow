@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { CommitAnalysisMode, CommitAnalysisResult, CommitDetail } from '../../core/models';
+import type { CommitAnalysisMode, CommitAnalysisModelOption, CommitAnalysisResult, CommitDetail } from '../../core/models';
 import type { GitRepository } from '../../core/ports/GitRepository';
 import { GitCache } from '../../infrastructure/git/GitCache';
 
@@ -13,6 +13,15 @@ interface AnalysisContext {
   contextTruncated: boolean;
 }
 
+type ModelLike = vscode.LanguageModelChat & {
+  id?: string;
+  family?: string;
+  version?: string;
+  name?: string;
+  detail?: string;
+  tooltip?: string;
+};
+
 export class CommitAnalysisService {
   private readonly cache = new GitCache<CommitAnalysisResult>(ANALYSIS_CACHE_TTL_MS);
 
@@ -21,17 +30,14 @@ export class CommitAnalysisService {
     private readonly output: vscode.OutputChannel
   ) { }
 
-  public async analyzeCommit(repoRoot: string, commitHash: string, mode: CommitAnalysisMode, token?: vscode.CancellationToken): Promise<CommitAnalysisResult> {
-    const cacheKey = `${repoRoot}::${commitHash}::${mode}`;
+  public async analyzeCommit(repoRoot: string, commitHash: string, mode: CommitAnalysisMode, modelSelection: string, token?: vscode.CancellationToken): Promise<CommitAnalysisResult> {
+    const cacheKey = `${repoRoot}::${commitHash}::${mode}::${modelSelection}`;
     const cached = this.cache.get(cacheKey);
     if (cached) {
       return cached;
     }
 
-    const [model] = await vscode.lm.selectChatModels({ vendor: 'copilot' });
-    if (!model) {
-      throw new Error('GitHub Copilot não está disponível neste VS Code para analisar commits.');
-    }
+    const { model, modelLabel } = await this.resolveModel(modelSelection);
 
     const context = await this.buildContext(repoRoot, commitHash);
     const response = await model.sendRequest([
@@ -48,6 +54,8 @@ export class CommitAnalysisService {
     const result: CommitAnalysisResult = {
       commitHash,
       mode,
+      modelSelection,
+      modelLabel,
       content: content.trim(),
       generatedAt: new Date().toISOString(),
       provider: PROVIDER_LABEL,
@@ -55,8 +63,24 @@ export class CommitAnalysisService {
     };
 
     this.cache.set(cacheKey, result);
-    this.output.appendLine(`[commit-analysis] Generated ${mode} analysis for ${commitHash.slice(0, 8)}${context.contextTruncated ? ' (truncated diff)' : ''}.`);
+    this.output.appendLine(`[commit-analysis] Generated ${mode} analysis for ${commitHash.slice(0, 8)} using ${modelLabel}${context.contextTruncated ? ' (truncated diff)' : ''}.`);
     return result;
+  }
+
+  public async listAvailableModels(): Promise<CommitAnalysisModelOption[]> {
+    const models = await vscode.lm.selectChatModels({ vendor: 'copilot' });
+    return this.sortModels(models).map((model) => {
+      const normalized = this.toModelLike(model);
+      return {
+        id: normalized.id ?? 'unknown',
+        label: this.getModelLabel(normalized),
+        provider: normalized.vendor,
+        family: normalized.family ?? 'unknown',
+        version: normalized.version ?? '',
+        description: this.getModelDescription(normalized),
+        costPriority: this.getCostPriority(normalized)
+      };
+    });
   }
 
   private async buildContext(repoRoot: string, commitHash: string): Promise<AnalysisContext> {
@@ -128,5 +152,84 @@ export class CommitAnalysisService {
       'Unified diff:',
       patch || '(empty)'
     ].join('\n');
+  }
+
+  private async resolveModel(modelSelection: string): Promise<{ model: vscode.LanguageModelChat; modelLabel: string }> {
+    if (modelSelection && modelSelection !== 'auto') {
+      const [exactMatch] = await vscode.lm.selectChatModels({ vendor: 'copilot', id: modelSelection });
+      if (exactMatch) {
+        return {
+          model: exactMatch,
+          modelLabel: this.getModelLabel(this.toModelLike(exactMatch))
+        };
+      }
+
+      this.output.appendLine(`[commit-analysis] Preferred model '${modelSelection}' is unavailable; falling back to automatic selection.`);
+    }
+
+    const models = await vscode.lm.selectChatModels({ vendor: 'copilot' });
+    const [preferredModel] = this.sortModels(models);
+    if (!preferredModel) {
+      throw new Error('GitHub Copilot não está disponível neste VS Code para analisar commits.');
+    }
+
+    return {
+      model: preferredModel,
+      modelLabel: this.getModelLabel(this.toModelLike(preferredModel))
+    };
+  }
+
+  private sortModels(models: readonly vscode.LanguageModelChat[]): vscode.LanguageModelChat[] {
+    return [...models].sort((left, right) => this.scoreModel(right) - this.scoreModel(left));
+  }
+
+  private scoreModel(model: vscode.LanguageModelChat): number {
+    const normalized = this.toModelLike(model);
+    const haystack = `${normalized.family ?? ''} ${normalized.id ?? ''}`.toLowerCase();
+    if (/\bo[134]\b|\bo[134]-|\bo[134]mini\b|\bo[134]-mini\b/.test(haystack)) {
+      return 100;
+    }
+    if (haystack.startsWith('o')) {
+      return 80;
+    }
+    return 10;
+  }
+
+  private toModelLike(model: vscode.LanguageModelChat): ModelLike {
+    return model as ModelLike;
+  }
+
+  private getModelLabel(model: ModelLike): string {
+    if (typeof model.name === 'string' && model.name.trim()) {
+      return model.name;
+    }
+
+    if (typeof model.family === 'string' && model.family.trim()) {
+      return typeof model.version === 'string' && model.version.trim()
+        ? `${model.family} (${model.version})`
+        : model.family;
+    }
+
+    return model.id ?? 'GitHub Copilot';
+  }
+
+  private getModelDescription(model: ModelLike): string {
+    if (typeof model.tooltip === 'string' && model.tooltip.trim()) {
+      return model.tooltip.trim();
+    }
+
+    if (typeof model.detail === 'string' && model.detail.trim()) {
+      return model.detail.trim();
+    }
+
+    return `GitHub Copilot model from the ${model.family ?? 'default'} family.`;
+  }
+
+  private getCostPriority(model: ModelLike): string | undefined {
+    const detailText = [model.detail, model.tooltip]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .join(' · ');
+
+    return detailText || undefined;
   }
 }

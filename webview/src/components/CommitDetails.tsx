@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { CommitAnalysisMode, CommitAnalysisResult, CommitDetail, CommitFileChange } from '../../../src/core/models';
+import type { CommitAnalysisMode, CommitAnalysisModelOption, CommitAnalysisResult, CommitDetail, CommitFileChange } from '../../../src/core/models';
 
 type CommitAnalysisViewState =
     | { status: 'idle' }
@@ -11,8 +11,11 @@ interface CommitDetailsProps {
     detail: CommitDetail | null;
     repoRoot?: string;
     analysisMode: CommitAnalysisMode;
+    analysisModelSelection: string;
+    analysisModelOptions: CommitAnalysisModelOption[];
     analysisState: CommitAnalysisViewState;
     onChangeAnalysisMode: (mode: CommitAnalysisMode) => void;
+    onChooseAnalysisModel: () => void;
     onAnalyze: (detail: CommitDetail, mode: CommitAnalysisMode) => void;
     onCopyAnalysis: (result: CommitAnalysisResult) => void;
     onInsertAnalysisNote: (detail: CommitDetail, result: CommitAnalysisResult) => void;
@@ -271,6 +274,7 @@ function renderAnalysisContent(state: CommitAnalysisViewState) {
                 <>
                     <div className="details__analysis-meta">
                         <span>{state.result.provider}</span>
+                        <span>{state.result.modelLabel}</span>
                         <span>{new Date(state.result.generatedAt).toLocaleString()}</span>
                         {state.result.contextTruncated ? <span>Diff truncated</span> : null}
                     </div>
@@ -282,7 +286,15 @@ function renderAnalysisContent(state: CommitAnalysisViewState) {
     }
 }
 
-export function CommitDetails({ detail, repoRoot, analysisMode, analysisState, onChangeAnalysisMode, onAnalyze, onCopyAnalysis, onInsertAnalysisNote, onOpenDiff, onClose }: Readonly<CommitDetailsProps>) {
+function getSelectedModelLabel(selection: string, options: CommitAnalysisModelOption[]): string {
+    if (selection === 'auto') {
+        return 'Auto';
+    }
+
+    return options.find((option) => option.id === selection)?.label ?? selection;
+}
+
+export function CommitDetails({ detail, repoRoot, analysisMode, analysisModelSelection, analysisModelOptions, analysisState, onChangeAnalysisMode, onChooseAnalysisModel, onAnalyze, onCopyAnalysis, onInsertAnalysisNote, onOpenDiff, onClose }: Readonly<CommitDetailsProps>) {
     const tree = useMemo(() => detail ? buildTree(detail.files) : null, [detail]);
     const [analysisExpanded, setAnalysisExpanded] = useState(true);
     const [filesExpanded, setFilesExpanded] = useState(false);
@@ -298,6 +310,7 @@ export function CommitDetails({ detail, repoRoot, analysisMode, analysisState, o
             : analysisState.status === 'error'
                 ? 'Try Again'
                 : 'Analyze with AI';
+    const selectedModelLabel = getSelectedModelLabel(analysisModelSelection, analysisModelOptions);
 
     return (
         <section className="details panel">
@@ -407,6 +420,13 @@ export function CommitDetails({ detail, repoRoot, analysisMode, analysisState, o
                                 onClick={() => onChangeAnalysisMode('technical')}
                             >
                                 Technical Review
+                            </button>
+                        </div>
+                        <div className="details__analysis-model-picker">
+                            <span>Model</span>
+                            <button type="button" className="details__analysis-model-btn" onClick={onChooseAnalysisModel}>
+                                <span>{selectedModelLabel}</span>
+                                <i className="codicon codicon-chevron-down" aria-hidden="true" />
                             </button>
                         </div>
                         {analysisState.status === 'success' ? (

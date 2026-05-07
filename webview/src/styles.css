@@ -441,6 +441,109 @@ select:focus {
   gap: 0.45rem;
 }
 
+.details__analysis-model-picker {
+  display: grid;
+  gap: 0.2rem;
+  min-width: min(100%, 16rem);
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.details__analysis-model-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+  width: 100%;
+  min-height: 2rem;
+  padding: 0 0.65rem;
+}
+
+.details__analysis-model-btn span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-picker-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.model-picker-card {
+  display: grid;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.8rem 0.9rem;
+  text-align: left;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: color-mix(in srgb, var(--panel) 60%, var(--bg) 40%);
+}
+
+.model-picker-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--panel-border) 60%);
+}
+
+.model-picker-card--selected {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--panel-border) 45%);
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel) 90%);
+}
+
+.model-picker-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.model-picker-card__header strong {
+  display: block;
+  font-size: 0.96rem;
+}
+
+.model-picker-card__provider {
+  display: block;
+  margin-top: 0.12rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.model-picker-card__current {
+  flex-shrink: 0;
+  padding: 0.18rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.model-picker-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.model-picker-card__meta span {
+  padding: 0.16rem 0.42rem;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  color: var(--muted-strong);
+  font-size: 0.74rem;
+  background: color-mix(in srgb, var(--bg) 35%, transparent);
+}
+
+.model-picker-card__description {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
 .details__analysis-scroll {
   min-height: 0;
   max-height: min(40vh, 24rem);
@@ -1210,6 +1313,10 @@ select:focus {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.modal--wide {
+  max-width: 760px;
 }
 
 .modal__header {

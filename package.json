@@ -46,6 +46,12 @@
           "default": 120,
           "minimum": 30,
           "description": "Seconds between automatic fetch checks while RepoFlow is active. Values below 30 are clamped to 30."
+        },
+        "repoFlow.commitAnalysis.modelSelection": {
+          "type": "string",
+          "default": "auto",
+          "scope": "application",
+          "description": "Preferred GitHub Copilot model for RepoFlow commit analysis. Use 'auto' to let RepoFlow choose the best available option."
         }
       }
     },

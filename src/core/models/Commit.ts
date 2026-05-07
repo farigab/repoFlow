@@ -33,9 +33,21 @@ export interface CommitDetail extends CommitSummary {
 
 export type CommitAnalysisMode = 'executive' | 'technical';
 
+export interface CommitAnalysisModelOption {
+  id: string;
+  label: string;
+  provider: string;
+  family: string;
+  version: string;
+  description?: string;
+  costPriority?: string;
+}
+
 export interface CommitAnalysisResult {
   commitHash: string;
   mode: CommitAnalysisMode;
+  modelSelection: string;
+  modelLabel: string;
   content: string;
   generatedAt: string;
   provider: string;

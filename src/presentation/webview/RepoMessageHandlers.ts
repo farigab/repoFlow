@@ -37,7 +37,8 @@ export class RepoMessageHandlers {
 
   public handlers(): MessageHandlerMap {
     return {
-      ready: async () => this.options.refresh(),
+      ready: async () => this.handleReady(),
+      setCommitAnalysisModelSelection: async (payload) => this.handleSetCommitAnalysisModelSelection(payload),
       loadMore: async (payload) => this.handleLoadMore(payload),
       applyFilters: async (payload) => this.handleApplyFilters(payload),
       selectCommit: async (payload) => this.handleSelectCommit(payload),
@@ -81,6 +82,11 @@ export class RepoMessageHandlers {
     };
   }
 
+  private async handleReady(): Promise<void> {
+    await this.options.refresh();
+    await this.postCommitAnalysisModels();
+  }
+
   private async handleLoadMore(payload: PayloadFor<'loadMore'>): Promise<void> {
     const filters = {
       ...this.options.getFilters(),
@@ -88,6 +94,12 @@ export class RepoMessageHandlers {
     };
     this.options.setFilters(filters);
     await this.options.refresh();
+  }
+
+  private async handleSetCommitAnalysisModelSelection(payload: PayloadFor<'setCommitAnalysisModelSelection'>): Promise<void> {
+    const selection = payload.selection?.trim() || 'auto';
+    await vscode.workspace.getConfiguration('repoFlow.commitAnalysis').update('modelSelection', selection, vscode.ConfigurationTarget.Global);
+    await this.postCommitAnalysisModels();
   }
 
   private async handleApplyFilters(payload: PayloadFor<'applyFilters'>): Promise<void> {
@@ -111,16 +123,17 @@ export class RepoMessageHandlers {
     const repoRoot = await this.options.host.getTrustedRepoRoot(payload.repoRoot);
     const commitHash = assertCommitHash(payload.commitHash);
     const mode = this.assertAnalysisMode(payload.mode);
+    const modelSelection = this.getCommitAnalysisModelSelection();
 
     try {
       await this.options.host.withBusy('Analyzing commit with AI...', async () => {
-        const analysis = await this.options.commitAnalysis.analyzeCommit(repoRoot, commitHash, mode);
+        const analysis = await this.options.commitAnalysis.analyzeCommit(repoRoot, commitHash, mode, modelSelection);
         await this.options.postMessage({ type: 'commitAnalysis', payload: analysis });
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.options.output.appendLine(`[commit-analysis] ${commitHash.slice(0, 8)} (${mode}) failed: ${message}`);
-      await this.options.postMessage({ type: 'commitAnalysisError', payload: { commitHash, mode, message } });
+      this.options.output.appendLine(`[commit-analysis] ${commitHash.slice(0, 8)} (${mode}, ${modelSelection}) failed: ${message}`);
+      await this.options.postMessage({ type: 'commitAnalysisError', payload: { commitHash, mode, modelSelection, message } });
       await this.options.host.postNotification('error', message);
     }
   }
@@ -155,6 +168,22 @@ export class RepoMessageHandlers {
 
   private assertAnalysisMode(mode: string): CommitAnalysisMode {
     return mode === 'executive' ? 'executive' : 'technical';
+  }
+
+  private async postCommitAnalysisModels(): Promise<void> {
+    const options = await this.options.commitAnalysis.listAvailableModels();
+    await this.options.postMessage({
+      type: 'commitAnalysisModels',
+      payload: {
+        selection: this.getCommitAnalysisModelSelection(),
+        options
+      }
+    });
+  }
+
+  private getCommitAnalysisModelSelection(): string {
+    const configured = vscode.workspace.getConfiguration('repoFlow.commitAnalysis').get<string>('modelSelection', 'auto');
+    return typeof configured === 'string' && configured.trim() ? configured.trim() : 'auto';
   }
 
   private async handleOpenDiff(payload: PayloadFor<'openDiff'>): Promise<void> {
