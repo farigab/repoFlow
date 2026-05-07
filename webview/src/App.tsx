@@ -1,7 +1,7 @@
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import type { BranchCompareResult, CommitDetail, CommitFileChange, CommitSummary, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, UndoEntry, WorkingTreeFile, WorktreeEntry } from '../../src/core/models';
-import { BranchCompareModal } from './components/BranchCompareModal';
+import type { BranchCompareResult, CommitAnalysisResult, CommitDetail, CommitFileChange, CommitSummary, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, UndoEntry, WorkingTreeFile, WorktreeEntry } from '../../src/core/models';
 import type { ExtensionToWebviewMessage } from '../../src/shared/protocol';
+import { BranchCompareModal } from './components/BranchCompareModal';
 import { CommitDetails } from './components/CommitDetails';
 import { CreatePRModal } from './components/CreatePRModal';
 import { DeleteBranchesModal } from './components/DeleteBranchesModal';
@@ -19,6 +19,12 @@ interface ContextMenuState {
     x: number;
     y: number;
 }
+
+type CommitAnalysisViewState =
+    | { status: 'idle' }
+    | { status: 'loading' }
+    | { status: 'success'; result: CommitAnalysisResult }
+    | { status: 'error'; message: string };
 
 const DEFAULT_FILTERS: GraphFilters = {
     includeRemotes: true,
@@ -51,6 +57,7 @@ export function App() {
     const [worktreeError, setWorktreeError] = useState<{ message: string; path?: string; canForce?: boolean } | null>(null);
     const [isUncommittedSelected, setIsUncommittedSelected] = useState(false);
     const [isCommitDetailsOpen, setIsCommitDetailsOpen] = useState(false);
+    const [analysisByCommit, setAnalysisByCommit] = useState<Record<string, CommitAnalysisViewState>>({});
     const requestedCommitHashRef = useRef<string | undefined>(undefined);
 
     const deferredFilters = {
@@ -75,6 +82,18 @@ export function App() {
                     setSelectedCommit(message.payload);
                     setSelectedCommitHash(message.payload.hash);
                     setIsCommitDetailsOpen(true);
+                    return;
+                case 'commitAnalysis':
+                    setAnalysisByCommit((current) => ({
+                        ...current,
+                        [message.payload.commitHash]: { status: 'success', result: message.payload }
+                    }));
+                    return;
+                case 'commitAnalysisError':
+                    setAnalysisByCommit((current) => ({
+                        ...current,
+                        [message.payload.commitHash]: { status: 'error', message: message.payload.message }
+                    }));
                     return;
                 case 'revealCommit': {
                     const { commitHash } = message.payload;
@@ -196,6 +215,22 @@ export function App() {
         };
 
         vscode.postMessage({ type: 'openDiff', payload: request });
+    }, [snapshot]);
+
+    const handleAnalyzeCommit = useCallback((detail: CommitDetail): void => {
+        if (!snapshot) {
+            return;
+        }
+
+        setAnalysisByCommit((current) => ({
+            ...current,
+            [detail.hash]: { status: 'loading' }
+        }));
+
+        vscode.postMessage({
+            type: 'analyzeCommit',
+            payload: { repoRoot: snapshot.repoRoot, commitHash: detail.hash }
+        });
     }, [snapshot]);
 
     const handleSelectUncommitted = useCallback((): void => {
@@ -324,6 +359,10 @@ export function App() {
         setUndoOpen(true);
     }, [snapshot]);
 
+    const selectedCommitAnalysis = selectedCommit
+        ? (analysisByCommit[selectedCommit.hash] ?? { status: 'idle' })
+        : { status: 'idle' } satisfies CommitAnalysisViewState;
+
     if (!snapshot) {
         return (
             <main className="shell shell--loading">
@@ -379,9 +418,12 @@ export function App() {
                             : <CommitDetails
                                 detail={selectedCommit}
                                 repoRoot={snapshot.repoRoot}
+                                analysisState={selectedCommitAnalysis}
+                                onAnalyze={handleAnalyzeCommit}
                                 onOpenDiff={handleOpenDiff}
                                 onClose={() => {
                                     setIsCommitDetailsOpen(false);
+                                    setSelectedCommit(null);
                                     requestedCommitHashRef.current = undefined;
                                 }}
                             />

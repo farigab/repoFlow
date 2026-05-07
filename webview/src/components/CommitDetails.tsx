@@ -1,9 +1,17 @@
 import { useMemo, useState } from 'react';
-import type { CommitDetail, CommitFileChange } from '../../../src/core/models';
+import type { CommitAnalysisResult, CommitDetail, CommitFileChange } from '../../../src/core/models';
+
+type CommitAnalysisViewState =
+    | { status: 'idle' }
+    | { status: 'loading' }
+    | { status: 'success'; result: CommitAnalysisResult }
+    | { status: 'error'; message: string };
 
 interface CommitDetailsProps {
     detail: CommitDetail | null;
     repoRoot?: string;
+    analysisState: CommitAnalysisViewState;
+    onAnalyze: (detail: CommitDetail) => void;
     onOpenDiff: (file: CommitFileChange, detail: CommitDetail) => void;
     onClose: () => void;
 }
@@ -131,12 +139,42 @@ function FolderGroup({ labelParts, node, depth, detail, onOpenDiff }: Readonly<F
     );
 }
 
-export function CommitDetails({ detail, onOpenDiff, onClose }: Readonly<CommitDetailsProps>) {
+function renderAnalysisContent(state: CommitAnalysisViewState) {
+    switch (state.status) {
+        case 'loading':
+            return <p className="details__analysis-placeholder">Generating analysis from the commit message and diff...</p>;
+        case 'error':
+            return <p className="details__analysis-error">{state.message}</p>;
+        case 'success':
+            return (
+                <>
+                    <div className="details__analysis-meta">
+                        <span>{state.result.provider}</span>
+                        <span>{new Date(state.result.generatedAt).toLocaleString()}</span>
+                        {state.result.contextTruncated ? <span>Diff truncated</span> : null}
+                    </div>
+                    <pre className="details__analysis-content">{state.result.content}</pre>
+                </>
+            );
+        default:
+            return <p className="details__analysis-placeholder">Run AI analysis to summarize intent, changed areas, risks, and follow-up checks.</p>;
+    }
+}
+
+export function CommitDetails({ detail, repoRoot, analysisState, onAnalyze, onOpenDiff, onClose }: Readonly<CommitDetailsProps>) {
     const tree = useMemo(() => detail ? buildTree(detail.files) : null, [detail]);
 
     if (!detail || !tree) {
         return null;
     }
+
+    const analysisButtonLabel = analysisState.status === 'loading'
+        ? 'Analyzing...'
+        : analysisState.status === 'success'
+            ? 'Re-run Analysis'
+            : analysisState.status === 'error'
+                ? 'Try Again'
+                : 'Analyze with AI';
 
     return (
         <section className="details panel">
@@ -146,15 +184,27 @@ export function CommitDetails({ detail, onOpenDiff, onClose }: Readonly<CommitDe
                         <span className="panel__eyebrow">Commit Details</span>
                         <h2>{detail.subject}</h2>
                     </div>
-                    <button
-                        type="button"
-                        className="panel__settings-btn"
-                        onClick={onClose}
-                        title="Close Commit Details"
-                        aria-label="Close Commit Details"
-                    >
-                        <i className="codicon codicon-close" aria-hidden="true" />
-                    </button>
+                    <div className="panel__header-actions">
+                        <button
+                            type="button"
+                            className="details__analyze-btn"
+                            onClick={() => onAnalyze(detail)}
+                            disabled={analysisState.status === 'loading' || !repoRoot}
+                            title="Generate AI analysis for this commit"
+                        >
+                            <i className="codicon codicon-sparkle" aria-hidden="true" />
+                            <span>{analysisButtonLabel}</span>
+                        </button>
+                        <button
+                            type="button"
+                            className="panel__settings-btn"
+                            onClick={onClose}
+                            title="Close Commit Details"
+                            aria-label="Close Commit Details"
+                        >
+                            <i className="codicon codicon-close" aria-hidden="true" />
+                        </button>
+                    </div>
                 </div>
                 <div className="details__meta-grid">
                     <div>
@@ -179,7 +229,7 @@ export function CommitDetails({ detail, onOpenDiff, onClose }: Readonly<CommitDe
                         <strong>
                             <span className="file-card__stats--add">+{detail.stats.additions}</span>
                             {' '}<span className="file-card__stats--del">-{detail.stats.deletions}</span>
-                            {' · '}{detail.stats.filesChanged}f
+                            {' | '}{detail.stats.filesChanged} files
                         </strong>
                     </div>
                 </div>
@@ -201,6 +251,16 @@ export function CommitDetails({ detail, onOpenDiff, onClose }: Readonly<CommitDe
                     {detail.stats.filesChanged} files
                 </span>
             </div>
+
+            <section className="details__analysis" aria-label="AI analysis">
+                <div className="details__analysis-header">
+                    <div>
+                        <span className="panel__eyebrow">AI Analysis</span>
+                        <h3>Commit Review</h3>
+                    </div>
+                </div>
+                {renderAnalysisContent(analysisState)}
+            </section>
 
             <div className="details__files">
                 {tree.files.map((file) => renderCommitFile(file, detail, onOpenDiff))}

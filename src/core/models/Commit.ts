@@ -31,6 +31,14 @@ export interface CommitDetail extends CommitSummary {
   files: CommitFileChange[];
 }
 
+export interface CommitAnalysisResult {
+  commitHash: string;
+  content: string;
+  generatedAt: string;
+  provider: string;
+  contextTruncated: boolean;
+}
+
 export interface CommitStats {
   insertions: number;
   deletions: number;

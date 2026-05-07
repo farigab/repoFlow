@@ -1,9 +1,9 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import type { CommitAnalysisService } from '../../application/analysis/CommitAnalysisService';
 import { DUPLICATE_FETCH_WINDOW_MS, type GitFetchCoordinator } from '../../application/fetch/GitFetchCoordinator';
 import type { GraphFilters } from '../../core/models';
 import type { GitRepository } from '../../core/ports/GitRepository';
-import type { ExtensionToWebviewMessage } from '../../shared/protocol';
 import {
   assertCommitHash,
   assertReflogRef,
@@ -14,14 +14,17 @@ import {
   assertSafeRelativeGitPath,
   assertSafeRemoteName
 } from '../../shared/gitInputValidation';
+import type { ExtensionToWebviewMessage } from '../../shared/protocol';
 import type { GitGraphHostServices } from './GitGraphHostServices';
 import type { MessageHandlerMap, PayloadFor } from './GitGraphMessageTypes';
 import { buildPrUrl, resolvePreferredRemoteForPullRequest } from './GitGraphUtils';
 
 interface RepoMessageHandlersOptions {
+  commitAnalysis: CommitAnalysisService;
   repository: GitRepository;
   fetchCoordinator: GitFetchCoordinator;
   host: GitGraphHostServices;
+  output: vscode.OutputChannel;
   getFilters: () => GraphFilters;
   setFilters: (filters: GraphFilters) => void;
   setSelectedCommitHash: (commitHash: string | undefined) => void;
@@ -38,6 +41,7 @@ export class RepoMessageHandlers {
       loadMore: async (payload) => this.handleLoadMore(payload),
       applyFilters: async (payload) => this.handleApplyFilters(payload),
       selectCommit: async (payload) => this.handleSelectCommit(payload),
+      analyzeCommit: async (payload) => this.handleAnalyzeCommit(payload),
       openDiff: async (payload) => this.handleOpenDiff(payload),
       createBranchPrompt: async (payload) => this.handleCreateBranchPrompt(payload),
       deleteBranch: async (payload) => this.handleDeleteBranch(payload),
@@ -99,6 +103,23 @@ export class RepoMessageHandlers {
     this.options.setSelectedCommitHash(commitHash);
     const detail = await this.options.repository.getCommitDetail(repoRoot, commitHash);
     await this.options.postMessage({ type: 'commitDetail', payload: detail });
+  }
+
+  private async handleAnalyzeCommit(payload: PayloadFor<'analyzeCommit'>): Promise<void> {
+    const repoRoot = await this.options.host.getTrustedRepoRoot(payload.repoRoot);
+    const commitHash = assertCommitHash(payload.commitHash);
+
+    try {
+      await this.options.host.withBusy('Analyzing commit with AI...', async () => {
+        const analysis = await this.options.commitAnalysis.analyzeCommit(repoRoot, commitHash);
+        await this.options.postMessage({ type: 'commitAnalysis', payload: analysis });
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.options.output.appendLine(`[commit-analysis] ${commitHash.slice(0, 8)} failed: ${message}`);
+      await this.options.postMessage({ type: 'commitAnalysisError', payload: { commitHash, message } });
+      await this.options.host.postNotification('error', message);
+    }
   }
 
   private async handleOpenDiff(payload: PayloadFor<'openDiff'>): Promise<void> {
