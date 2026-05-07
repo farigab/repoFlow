@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { CommitAnalysisResult, CommitDetail } from '../../core/models';
+import type { CommitAnalysisMode, CommitAnalysisResult, CommitDetail } from '../../core/models';
 import type { GitRepository } from '../../core/ports/GitRepository';
 import { GitCache } from '../../infrastructure/git/GitCache';
 
@@ -21,8 +21,8 @@ export class CommitAnalysisService {
     private readonly output: vscode.OutputChannel
   ) { }
 
-  public async analyzeCommit(repoRoot: string, commitHash: string, token?: vscode.CancellationToken): Promise<CommitAnalysisResult> {
-    const cacheKey = `${repoRoot}::${commitHash}`;
+  public async analyzeCommit(repoRoot: string, commitHash: string, mode: CommitAnalysisMode, token?: vscode.CancellationToken): Promise<CommitAnalysisResult> {
+    const cacheKey = `${repoRoot}::${commitHash}::${mode}`;
     const cached = this.cache.get(cacheKey);
     if (cached) {
       return cached;
@@ -35,7 +35,7 @@ export class CommitAnalysisService {
 
     const context = await this.buildContext(repoRoot, commitHash);
     const response = await model.sendRequest([
-      vscode.LanguageModelChatMessage.User(this.buildPrompt(context))
+      vscode.LanguageModelChatMessage.User(this.buildPrompt(context, mode))
     ], {
       justification: 'Analyze a Git commit selected by the user in RepoFlow.'
     }, token);
@@ -47,6 +47,7 @@ export class CommitAnalysisService {
 
     const result: CommitAnalysisResult = {
       commitHash,
+      mode,
       content: content.trim(),
       generatedAt: new Date().toISOString(),
       provider: PROVIDER_LABEL,
@@ -54,7 +55,7 @@ export class CommitAnalysisService {
     };
 
     this.cache.set(cacheKey, result);
-    this.output.appendLine(`[commit-analysis] Generated analysis for ${commitHash.slice(0, 8)}${context.contextTruncated ? ' (truncated diff)' : ''}.`);
+    this.output.appendLine(`[commit-analysis] Generated ${mode} analysis for ${commitHash.slice(0, 8)}${context.contextTruncated ? ' (truncated diff)' : ''}.`);
     return result;
   }
 
@@ -72,20 +73,41 @@ export class CommitAnalysisService {
     return { detail, patch, contextTruncated };
   }
 
-  private buildPrompt(context: AnalysisContext): string {
+  private buildPrompt(context: AnalysisContext, mode: CommitAnalysisMode): string {
     const { detail, patch, contextTruncated } = context;
     const files = detail.files
       .slice(0, 40)
       .map((file) => `- ${file.status} ${file.path} (+${file.additions}/-${file.deletions})`)
       .join('\n');
 
+    const modeInstructions = mode === 'executive'
+      ? [
+        'Mode: Executive Summary.',
+        'Prioritize user impact, scope, release risk, and whether extra coordination or communication is needed.',
+        'Keep the tone compact and decision-oriented for someone scanning multiple commits quickly.'
+      ]
+      : [
+        'Mode: Technical Review.',
+        'Prioritize implementation details, touched code paths, edge cases, regression risk, and missing tests.',
+        'Assume the reader is an engineer reviewing the change before merge or release.'
+      ];
+
     return [
       'You are analyzing a Git commit for a developer inside VS Code.',
-      'Provide a concise, practical review in plain text with these sections:',
-      '1. Summary',
-      '2. What Changed',
-      '3. Risks / Attention Points',
-      '4. Suggested Follow-up',
+      'Return a concise, practical review in plain text using exactly these markdown headings in this order:',
+      '## Summary',
+      '## What Changed',
+      '## Risks',
+      '## Validation',
+      '## Suggested Follow-up',
+      '',
+      'Formatting rules:',
+      '- Under each heading, write 1 to 4 short bullet points using `- `.',
+      '- Keep each bullet specific and action-oriented.',
+      '- If something is unknown from the diff, say so briefly instead of inventing details.',
+      '- Do not wrap the answer in code fences.',
+      '',
+      ...modeInstructions,
       '',
       'Focus on implementation impact, likely intent, possible regressions, and missing validation.',
       'Do not mention that you are an AI model.',

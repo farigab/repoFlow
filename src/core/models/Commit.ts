@@ -31,8 +31,11 @@ export interface CommitDetail extends CommitSummary {
   files: CommitFileChange[];
 }
 
+export type CommitAnalysisMode = 'executive' | 'technical';
+
 export interface CommitAnalysisResult {
   commitHash: string;
+  mode: CommitAnalysisMode;
   content: string;
   generatedAt: string;
   provider: string;

@@ -2,7 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { CommitAnalysisService } from '../../application/analysis/CommitAnalysisService';
 import { DUPLICATE_FETCH_WINDOW_MS, type GitFetchCoordinator } from '../../application/fetch/GitFetchCoordinator';
-import type { GraphFilters } from '../../core/models';
+import type { CommitAnalysisMode, GraphFilters } from '../../core/models';
 import type { GitRepository } from '../../core/ports/GitRepository';
 import {
   assertCommitHash,
@@ -42,6 +42,8 @@ export class RepoMessageHandlers {
       applyFilters: async (payload) => this.handleApplyFilters(payload),
       selectCommit: async (payload) => this.handleSelectCommit(payload),
       analyzeCommit: async (payload) => this.handleAnalyzeCommit(payload),
+      copyCommitAnalysis: async (payload) => this.handleCopyCommitAnalysis(payload),
+      insertCommitAnalysisNote: async (payload) => this.handleInsertCommitAnalysisNote(payload),
       openDiff: async (payload) => this.handleOpenDiff(payload),
       createBranchPrompt: async (payload) => this.handleCreateBranchPrompt(payload),
       deleteBranch: async (payload) => this.handleDeleteBranch(payload),
@@ -108,18 +110,51 @@ export class RepoMessageHandlers {
   private async handleAnalyzeCommit(payload: PayloadFor<'analyzeCommit'>): Promise<void> {
     const repoRoot = await this.options.host.getTrustedRepoRoot(payload.repoRoot);
     const commitHash = assertCommitHash(payload.commitHash);
+    const mode = this.assertAnalysisMode(payload.mode);
 
     try {
       await this.options.host.withBusy('Analyzing commit with AI...', async () => {
-        const analysis = await this.options.commitAnalysis.analyzeCommit(repoRoot, commitHash);
+        const analysis = await this.options.commitAnalysis.analyzeCommit(repoRoot, commitHash, mode);
         await this.options.postMessage({ type: 'commitAnalysis', payload: analysis });
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.options.output.appendLine(`[commit-analysis] ${commitHash.slice(0, 8)} failed: ${message}`);
-      await this.options.postMessage({ type: 'commitAnalysisError', payload: { commitHash, message } });
+      this.options.output.appendLine(`[commit-analysis] ${commitHash.slice(0, 8)} (${mode}) failed: ${message}`);
+      await this.options.postMessage({ type: 'commitAnalysisError', payload: { commitHash, mode, message } });
       await this.options.host.postNotification('error', message);
     }
+  }
+
+  private async handleCopyCommitAnalysis(payload: PayloadFor<'copyCommitAnalysis'>): Promise<void> {
+    await vscode.env.clipboard.writeText(payload.content);
+    await this.options.host.postNotification('info', 'Analysis copied to clipboard.');
+  }
+
+  private async handleInsertCommitAnalysisNote(payload: PayloadFor<'insertCommitAnalysisNote'>): Promise<void> {
+    const mode = this.assertAnalysisMode(payload.mode);
+    const doc = await vscode.workspace.openTextDocument({
+      language: 'markdown',
+      content: this.buildCommitAnalysisNote(payload.commitHash, payload.subject, mode, payload.content)
+    });
+    await vscode.window.showTextDocument(doc, { preserveFocus: false, preview: false });
+    await this.options.host.postNotification('info', 'Commit analysis note opened in a new editor.');
+  }
+
+  private buildCommitAnalysisNote(commitHash: string, subject: string, mode: CommitAnalysisMode, content: string): string {
+    const modeLabel = mode === 'executive' ? 'Executive Summary' : 'Technical Review';
+    return [
+      `# Commit Note: ${subject}`,
+      '',
+      `- Commit: ${commitHash}`,
+      `- Mode: ${modeLabel}`,
+      `- Generated: ${new Date().toISOString()}`,
+      '',
+      content.trim()
+    ].join('\n');
+  }
+
+  private assertAnalysisMode(mode: string): CommitAnalysisMode {
+    return mode === 'executive' ? 'executive' : 'technical';
   }
 
   private async handleOpenDiff(payload: PayloadFor<'openDiff'>): Promise<void> {

@@ -1,11 +1,13 @@
-import type { BranchCompareResult, CommitAnalysisResult, CommitDetail, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, UndoEntry, WorkingTreeFile, WorktreeEntry } from '../core/models';
+import type { BranchCompareResult, CommitAnalysisMode, CommitAnalysisResult, CommitDetail, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, UndoEntry, WorkingTreeFile, WorktreeEntry } from '../core/models';
 
 export type WebviewToExtensionMessage =
   | { type: 'ready' }
   | { type: 'loadMore'; payload: { limit: number } }
   | { type: 'applyFilters'; payload: Partial<GraphFilters> }
   | { type: 'selectCommit'; payload: { repoRoot: string; commitHash: string } }
-  | { type: 'analyzeCommit'; payload: { repoRoot: string; commitHash: string } }
+  | { type: 'analyzeCommit'; payload: { repoRoot: string; commitHash: string; mode: CommitAnalysisMode } }
+  | { type: 'copyCommitAnalysis'; payload: { content: string } }
+  | { type: 'insertCommitAnalysisNote'; payload: { commitHash: string; subject: string; mode: CommitAnalysisMode; content: string } }
   | { type: 'openDiff'; payload: DiffRequest }
   | { type: 'createBranchPrompt'; payload: { repoRoot: string; fromRef?: string } }
   | { type: 'deleteBranch'; payload: { repoRoot: string; branchName: string } }
@@ -61,7 +63,7 @@ export type ExtensionToWebviewMessage =
   | { type: 'graphSnapshot'; payload: GraphSnapshot }
   | { type: 'commitDetail'; payload: CommitDetail }
   | { type: 'commitAnalysis'; payload: CommitAnalysisResult }
-  | { type: 'commitAnalysisError'; payload: { commitHash: string; message: string } }
+  | { type: 'commitAnalysisError'; payload: { commitHash: string; mode: CommitAnalysisMode; message: string } }
   | { type: 'revealCommit'; payload: { commitHash: string } }
   | { type: 'busy'; payload: { value: boolean; label?: string } }
   | { type: 'notification'; payload: { kind: 'info' | 'error'; message: string } }

@@ -1,5 +1,5 @@
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import type { BranchCompareResult, CommitAnalysisResult, CommitDetail, CommitFileChange, CommitSummary, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, UndoEntry, WorkingTreeFile, WorktreeEntry } from '../../src/core/models';
+import type { BranchCompareResult, CommitAnalysisMode, CommitAnalysisResult, CommitDetail, CommitFileChange, CommitSummary, DiffRequest, GraphFilters, GraphSnapshot, StashEntry, UndoEntry, WorkingTreeFile, WorktreeEntry } from '../../src/core/models';
 import type { ExtensionToWebviewMessage } from '../../src/shared/protocol';
 import { BranchCompareModal } from './components/BranchCompareModal';
 import { CommitDetails } from './components/CommitDetails';
@@ -25,6 +25,10 @@ type CommitAnalysisViewState =
     | { status: 'loading' }
     | { status: 'success'; result: CommitAnalysisResult }
     | { status: 'error'; message: string };
+
+function getAnalysisKey(commitHash: string, mode: CommitAnalysisMode): string {
+    return `${commitHash}:${mode}`;
+}
 
 const DEFAULT_FILTERS: GraphFilters = {
     includeRemotes: true,
@@ -57,6 +61,7 @@ export function App() {
     const [worktreeError, setWorktreeError] = useState<{ message: string; path?: string; canForce?: boolean } | null>(null);
     const [isUncommittedSelected, setIsUncommittedSelected] = useState(false);
     const [isCommitDetailsOpen, setIsCommitDetailsOpen] = useState(false);
+    const [analysisMode, setAnalysisMode] = useState<CommitAnalysisMode>('technical');
     const [analysisByCommit, setAnalysisByCommit] = useState<Record<string, CommitAnalysisViewState>>({});
     const requestedCommitHashRef = useRef<string | undefined>(undefined);
 
@@ -86,13 +91,13 @@ export function App() {
                 case 'commitAnalysis':
                     setAnalysisByCommit((current) => ({
                         ...current,
-                        [message.payload.commitHash]: { status: 'success', result: message.payload }
+                        [getAnalysisKey(message.payload.commitHash, message.payload.mode)]: { status: 'success', result: message.payload }
                     }));
                     return;
                 case 'commitAnalysisError':
                     setAnalysisByCommit((current) => ({
                         ...current,
-                        [message.payload.commitHash]: { status: 'error', message: message.payload.message }
+                        [getAnalysisKey(message.payload.commitHash, message.payload.mode)]: { status: 'error', message: message.payload.message }
                     }));
                     return;
                 case 'revealCommit': {
@@ -217,21 +222,37 @@ export function App() {
         vscode.postMessage({ type: 'openDiff', payload: request });
     }, [snapshot]);
 
-    const handleAnalyzeCommit = useCallback((detail: CommitDetail): void => {
+    const handleAnalyzeCommit = useCallback((detail: CommitDetail, mode: CommitAnalysisMode): void => {
         if (!snapshot) {
             return;
         }
 
         setAnalysisByCommit((current) => ({
             ...current,
-            [detail.hash]: { status: 'loading' }
+            [getAnalysisKey(detail.hash, mode)]: { status: 'loading' }
         }));
 
         vscode.postMessage({
             type: 'analyzeCommit',
-            payload: { repoRoot: snapshot.repoRoot, commitHash: detail.hash }
+            payload: { repoRoot: snapshot.repoRoot, commitHash: detail.hash, mode }
         });
     }, [snapshot]);
+
+    const handleCopyAnalysis = useCallback((result: CommitAnalysisResult): void => {
+        vscode.postMessage({ type: 'copyCommitAnalysis', payload: { content: result.content } });
+    }, []);
+
+    const handleInsertAnalysisNote = useCallback((detail: CommitDetail, result: CommitAnalysisResult): void => {
+        vscode.postMessage({
+            type: 'insertCommitAnalysisNote',
+            payload: {
+                commitHash: detail.hash,
+                subject: detail.subject,
+                mode: result.mode,
+                content: result.content
+            }
+        });
+    }, []);
 
     const handleSelectUncommitted = useCallback((): void => {
         setIsUncommittedSelected(true);
@@ -360,7 +381,7 @@ export function App() {
     }, [snapshot]);
 
     const selectedCommitAnalysis = selectedCommit
-        ? (analysisByCommit[selectedCommit.hash] ?? { status: 'idle' })
+        ? (analysisByCommit[getAnalysisKey(selectedCommit.hash, analysisMode)] ?? { status: 'idle' })
         : { status: 'idle' } satisfies CommitAnalysisViewState;
 
     if (!snapshot) {
@@ -418,8 +439,12 @@ export function App() {
                             : <CommitDetails
                                 detail={selectedCommit}
                                 repoRoot={snapshot.repoRoot}
+                                analysisMode={analysisMode}
                                 analysisState={selectedCommitAnalysis}
+                                onChangeAnalysisMode={setAnalysisMode}
                                 onAnalyze={handleAnalyzeCommit}
+                                onCopyAnalysis={handleCopyAnalysis}
+                                onInsertAnalysisNote={handleInsertAnalysisNote}
                                 onOpenDiff={handleOpenDiff}
                                 onClose={() => {
                                     setIsCommitDetailsOpen(false);

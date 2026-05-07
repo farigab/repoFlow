@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { CommitAnalysisResult, CommitDetail, CommitFileChange } from '../../../src/core/models';
+import type { CommitAnalysisMode, CommitAnalysisResult, CommitDetail, CommitFileChange } from '../../../src/core/models';
 
 type CommitAnalysisViewState =
     | { status: 'idle' }
@@ -10,11 +10,22 @@ type CommitAnalysisViewState =
 interface CommitDetailsProps {
     detail: CommitDetail | null;
     repoRoot?: string;
+    analysisMode: CommitAnalysisMode;
     analysisState: CommitAnalysisViewState;
-    onAnalyze: (detail: CommitDetail) => void;
+    onChangeAnalysisMode: (mode: CommitAnalysisMode) => void;
+    onAnalyze: (detail: CommitDetail, mode: CommitAnalysisMode) => void;
+    onCopyAnalysis: (result: CommitAnalysisResult) => void;
+    onInsertAnalysisNote: (detail: CommitDetail, result: CommitAnalysisResult) => void;
     onOpenDiff: (file: CommitFileChange, detail: CommitDetail) => void;
     onClose: () => void;
 }
+
+const ANALYSIS_KEYWORDS = [
+    { pattern: /\bbreaking changes?\b/gi, className: 'details__keyword details__keyword--breaking' },
+    { pattern: /\brenam(?:e|ed|es|ing)\b/gi, className: 'details__keyword details__keyword--rename' },
+    { pattern: /\btests?\b|\btesting\b/gi, className: 'details__keyword details__keyword--test' },
+    { pattern: /\brisks?\b|\brisky\b/gi, className: 'details__keyword details__keyword--risk' }
+];
 
 const fullDateFormatter = new Intl.DateTimeFormat(undefined, {
     year: 'numeric',
@@ -100,6 +111,116 @@ function renderCommitFile(
     );
 }
 
+interface AnalysisSection {
+    title: string;
+    items: string[];
+}
+
+function parseAnalysisSections(content: string): AnalysisSection[] {
+    const normalized = content.replace(/\r\n/g, '\n').trim();
+    if (!normalized) {
+        return [];
+    }
+
+    const sections: AnalysisSection[] = [];
+    let current: AnalysisSection | null = null;
+
+    for (const rawLine of normalized.split('\n')) {
+        const line = rawLine.trim();
+        if (!line) {
+            continue;
+        }
+
+        const headingMatch = /^(?:##\s+|)(Summary|What Changed|Risks|Validation|Suggested Follow-up):?$/i.exec(line);
+        if (headingMatch) {
+            current = { title: headingMatch[1], items: [] };
+            sections.push(current);
+            continue;
+        }
+
+        if (!current) {
+            continue;
+        }
+
+        current.items.push(line.replace(/^[-*]\s+/, ''));
+    }
+
+    return sections.filter((section) => section.items.length > 0);
+}
+
+function renderStructuredAnalysis(content: string) {
+    const sections = parseAnalysisSections(content);
+    if (sections.length === 0) {
+        return <pre className="details__analysis-content">{highlightAnalysisText(content)}</pre>;
+    }
+
+    return (
+        <div className="details__analysis-sections">
+            {sections.map((section) => (
+                <section key={section.title} className="details__analysis-section">
+                    <h4>{section.title}</h4>
+                    <ul>
+                        {section.items.map((item) => <li key={`${section.title}-${item}`}>{highlightAnalysisText(item)}</li>)}
+                    </ul>
+                </section>
+            ))}
+        </div>
+    );
+}
+
+function findKeywordMatch(text: string, startIndex: number): { index: number; length: number; value: string; className: string } | null {
+    let bestMatch: { index: number; length: number; value: string; className: string } | null = null;
+
+    for (const keyword of ANALYSIS_KEYWORDS) {
+        keyword.pattern.lastIndex = 0;
+        const slice = text.slice(startIndex);
+        const match = keyword.pattern.exec(slice);
+        if (!match || match.index < 0) {
+            continue;
+        }
+
+        const candidate = {
+            index: startIndex + match.index,
+            length: match[0].length,
+            value: match[0],
+            className: keyword.className
+        };
+
+        if (!bestMatch || candidate.index < bestMatch.index) {
+            bestMatch = candidate;
+        }
+    }
+
+    return bestMatch;
+}
+
+function highlightAnalysisText(text: string) {
+    const parts: React.ReactNode[] = [];
+    let cursor = 0;
+
+    while (cursor < text.length) {
+        const match = findKeywordMatch(text, cursor);
+        if (!match) {
+            parts.push(text.slice(cursor));
+            break;
+        }
+
+        if (match.index > cursor) {
+            parts.push(text.slice(cursor, match.index));
+        }
+
+        parts.push(
+            <mark key={`${match.className}-${match.index}`} className={match.className}>
+                {match.value}
+            </mark>
+        );
+
+        cursor = match.index + match.length;
+    }
+
+    return parts;
+}
+
 function FolderGroup({ labelParts, node, depth, detail, onOpenDiff }: Readonly<FolderGroupProps>) {
     const compressed = compressFolder(labelParts, node);
     const label = compressed.labelParts.join(' / ');
@@ -153,7 +274,7 @@ function renderAnalysisContent(state: CommitAnalysisViewState) {
                         <span>{new Date(state.result.generatedAt).toLocaleString()}</span>
                         {state.result.contextTruncated ? <span>Diff truncated</span> : null}
                     </div>
-                    <pre className="details__analysis-content">{state.result.content}</pre>
+                    {renderStructuredAnalysis(state.result.content)}
                 </>
             );
         default:
@@ -161,8 +282,10 @@ function renderAnalysisContent(state: CommitAnalysisViewState) {
     }
 }
 
-export function CommitDetails({ detail, repoRoot, analysisState, onAnalyze, onOpenDiff, onClose }: Readonly<CommitDetailsProps>) {
+export function CommitDetails({ detail, repoRoot, analysisMode, analysisState, onChangeAnalysisMode, onAnalyze, onCopyAnalysis, onInsertAnalysisNote, onOpenDiff, onClose }: Readonly<CommitDetailsProps>) {
     const tree = useMemo(() => detail ? buildTree(detail.files) : null, [detail]);
+    const [analysisExpanded, setAnalysisExpanded] = useState(true);
+    const [filesExpanded, setFilesExpanded] = useState(false);
 
     if (!detail || !tree) {
         return null;
@@ -188,7 +311,7 @@ export function CommitDetails({ detail, repoRoot, analysisState, onAnalyze, onOp
                         <button
                             type="button"
                             className="details__analyze-btn"
-                            onClick={() => onAnalyze(detail)}
+                            onClick={() => onAnalyze(detail, analysisMode)}
                             disabled={analysisState.status === 'loading' || !repoRoot}
                             title="Generate AI analysis for this commit"
                         >
@@ -254,27 +377,93 @@ export function CommitDetails({ detail, repoRoot, analysisState, onAnalyze, onOp
 
             <section className="details__analysis" aria-label="AI analysis">
                 <div className="details__analysis-header">
-                    <div>
-                        <span className="panel__eyebrow">AI Analysis</span>
-                        <h3>Commit Review</h3>
+                    <div className="details__section-heading">
+                        <button
+                            type="button"
+                            className="details__section-toggle"
+                            onClick={() => setAnalysisExpanded((value) => !value)}
+                            aria-expanded={analysisExpanded}
+                            aria-controls="commit-analysis-panel"
+                        >
+                            <i className={`codicon ${analysisExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} aria-hidden="true" />
+                            <span>
+                                <span className="panel__eyebrow">AI Analysis</span>
+                                <h3>Commit Review</h3>
+                            </span>
+                        </button>
+                    </div>
+                    <div className="details__analysis-controls">
+                        <div className="details__analysis-mode-switch" role="tablist" aria-label="Analysis mode">
+                            <button
+                                type="button"
+                                className={`details__analysis-mode-btn${analysisMode === 'executive' ? ' details__analysis-mode-btn--active' : ''}`}
+                                onClick={() => onChangeAnalysisMode('executive')}
+                            >
+                                Executive Summary
+                            </button>
+                            <button
+                                type="button"
+                                className={`details__analysis-mode-btn${analysisMode === 'technical' ? ' details__analysis-mode-btn--active' : ''}`}
+                                onClick={() => onChangeAnalysisMode('technical')}
+                            >
+                                Technical Review
+                            </button>
+                        </div>
+                        {analysisState.status === 'success' ? (
+                            <div className="details__analysis-actions">
+                                <button type="button" className="details__analysis-action-btn" onClick={() => onCopyAnalysis(analysisState.result)}>
+                                    <i className="codicon codicon-copy" aria-hidden="true" />
+                                    <span>Copy analysis</span>
+                                </button>
+                                <button type="button" className="details__analysis-action-btn" onClick={() => onInsertAnalysisNote(detail, analysisState.result)}>
+                                    <i className="codicon codicon-note" aria-hidden="true" />
+                                    <span>Insert into commit note</span>
+                                </button>
+                            </div>
+                        ) : null}
                     </div>
                 </div>
-                {renderAnalysisContent(analysisState)}
+                {analysisExpanded ? (
+                    <div id="commit-analysis-panel" className="details__analysis-scroll">
+                        {renderAnalysisContent(analysisState)}
+                    </div>
+                ) : null}
             </section>
 
-            <div className="details__files">
-                {tree.files.map((file) => renderCommitFile(file, detail, onOpenDiff))}
-                {[...tree.children.entries()].map(([name, child]) => (
-                    <FolderGroup
-                        key={`${detail.hash}-${name}`}
-                        labelParts={[name]}
-                        node={child}
-                        depth={0}
-                        detail={detail}
-                        onOpenDiff={onOpenDiff}
-                    />
-                ))}
-            </div>
+            <section className="details__files-section" aria-label="Changed files">
+                <div className="details__files-header">
+                    <button
+                        type="button"
+                        className="details__section-toggle"
+                        onClick={() => setFilesExpanded((value) => !value)}
+                        aria-expanded={filesExpanded}
+                        aria-controls="commit-files-panel"
+                    >
+                        <i className={`codicon ${filesExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} aria-hidden="true" />
+                        <span>
+                            <span className="panel__eyebrow">Changed Files</span>
+                            <h3>Files in this commit</h3>
+                        </span>
+                    </button>
+                    <span className="details__files-count">{detail.stats.filesChanged} files</span>
+                </div>
+
+                {filesExpanded ? (
+                    <div id="commit-files-panel" className="details__files">
+                        {tree.files.map((file) => renderCommitFile(file, detail, onOpenDiff))}
+                        {[...tree.children.entries()].map(([name, child]) => (
+                            <FolderGroup
+                                key={`${detail.hash}-${name}`}
+                                labelParts={[name]}
+                                node={child}
+                                depth={0}
+                                detail={detail}
+                                onOpenDiff={onOpenDiff}
+                            />
+                        ))}
+                    </div>
+                ) : null}
+            </section>
         </section>
     );
 }
