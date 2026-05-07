@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
+import { CommitAnalysisService } from '../../application/analysis/CommitAnalysisService';
 import type { GitFetchCoordinator } from '../../application/fetch/GitFetchCoordinator';
 import type { GraphFilters } from '../../core/models';
 import type { GitRepository } from '../../core/ports/GitRepository';
-import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '../../shared/protocol';
 import { assertCommitHash } from '../../shared/gitInputValidation';
+import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '../../shared/protocol';
 import { buildRepoStatusBarText, buildRepoSummary } from '../../shared/repoSummary';
 import { GitGraphHostServices } from './GitGraphHostServices';
 import type { MessageHandlerMap } from './GitGraphMessageTypes';
@@ -40,6 +41,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
   ) {
     const postMessage = (message: ExtensionToWebviewMessage) => this.postMessage(message);
     const refresh = () => this.refresh();
+    const commitAnalysis = new CommitAnalysisService(repository, output);
     this.host = new GitGraphHostServices({
       repository,
       output,
@@ -50,9 +52,11 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
 
     this.messageHandlers = {
       ...new RepoMessageHandlers({
+        commitAnalysis,
         repository,
         fetchCoordinator,
         host: this.host,
+        output,
         getFilters: () => this.filters,
         setFilters: (filters) => { this.filters = filters; },
         setSelectedCommitHash: (commitHash) => { this.selectedCommitHash = commitHash; },

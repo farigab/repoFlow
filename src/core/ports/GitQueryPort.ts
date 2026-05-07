@@ -16,6 +16,7 @@ export interface GitQueryPort {
   resolveRepositoryRoot(preferredPath?: string): Promise<string>;
   getGraph(filters: GraphFilters): Promise<GraphSnapshot>;
   getCommitDetail(repoRoot: string, commitHash: string): Promise<CommitDetail>;
+  getCommitPatch(repoRoot: string, commitHash: string): Promise<string>;
   getBranches(repoRoot: string): Promise<BranchSummary[]>;
   getLocalChanges(repoRoot: string): Promise<WorkingTreeStatus>;
   readBlobContent(repoRoot: string, ref: string, path: string): Promise<string>;

@@ -21,6 +21,7 @@ import type {
 } from '../../core/models';
 import type { GitRepository } from '../../core/ports/GitRepository';
 import { EMPTY_TREE } from '../../shared/constants';
+import { GitCache } from './GitCache';
 import { GitCommandRunner, type GitRunOptions } from './GitCommandRunner';
 import {
   escapePathSpec,
@@ -30,7 +31,6 @@ import {
   parseStashList,
   parseUndoEntries
 } from './GitOperationParsers';
-import { GitCache } from './GitCache';
 import {
   parseBlameOutput,
   parseBranchList,
@@ -230,6 +230,18 @@ export class GitCliRepository implements GitRepository {
     );
 
     return detail;
+  }
+
+  public async getCommitPatch(repoRoot: string, commitHash: string): Promise<string> {
+    return this.runGit(repoRoot, [
+      'show',
+      '--format=',
+      '--find-renames',
+      '--find-copies',
+      '--root',
+      '--unified=3',
+      commitHash
+    ]);
   }
 
   public async getBranches(repoRoot: string): Promise<BranchSummary[]> {
