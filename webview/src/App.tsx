@@ -188,7 +188,7 @@ export function App() {
     }, []);
 
     const assets = useMemo(() => window.__REPOFLOW_ASSETS__ ?? {}, []);
-    const { leftPercent, containerRef, onDividerMouseDown } = useResizableSplit(62);
+    const { leftPercent, topPercent, containerRef, onDividerMouseDown } = useResizableSplit(62);
     const showSidebar = isUncommittedSelected || isCommitDetailsOpen;
 
     const handleSelectCommit = useCallback((commit: CommitSummary): void => {
@@ -421,7 +421,9 @@ export function App() {
                 ref={containerRef as React.RefObject<HTMLElement>}
                 style={{
                     '--layout-left': `${showSidebar ? leftPercent : 100}%`,
-                    '--layout-right': `${showSidebar ? 100 - leftPercent : 0}%`
+                    '--layout-right': `${showSidebar ? 100 - leftPercent : 0}%`,
+                    '--layout-top': `${showSidebar ? topPercent : 100}%`,
+                    '--layout-bottom': `${showSidebar ? 100 - topPercent : 0}%`
                 } as React.CSSProperties}
             >
                 <GraphCanvas

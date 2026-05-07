@@ -1228,7 +1228,7 @@ select:focus {
 @media (max-width: 1180px) {
   .layout {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: var(--layout-top, minmax(0, 1fr)) 5px var(--layout-bottom, minmax(0, 1fr));
   }
 
   .layout--details-collapsed {
@@ -1236,7 +1236,9 @@ select:focus {
   }
 
   .resizer {
-    display: none;
+    width: 100%;
+    height: 5px;
+    cursor: row-resize;
   }
 
   .sidebar {
