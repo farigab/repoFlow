@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.9 - 2026-05-07
+
+- **Changed:** CommitDetails component was refactored for improved tab navigation and a cleaner UI layout.
+- **Changed:** The resizable split layout now supports top and bottom boundary adjustments for improved responsiveness across different panel sizes.
+
+## Included commits - 1.2.9
+
+- [91dac99](https://github.com/farigab/repoFlow/commit/91dac99) - feat: enhance resizable layout with top and bottom adjustments for improved responsiveness
+- [e039c3f](https://github.com/farigab/repoFlow/commit/e039c3f) - feat: refactor CommitDetails component for improved tab navigation and UI layout
+
 ## 1.2.8 - 2026-05-02
 
 - **Added:** Commit Details now includes on-demand AI commit analysis powered by GitHub Copilot models, with executive/technical review modes, analysis caching, diff truncation handling, and inline actions to copy the result or open it as a commit note.
