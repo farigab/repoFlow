@@ -707,6 +707,8 @@ export class GitCliRepository implements GitRepository {
   public async getBlame(repoRoot: string, relativeFilePath: string): Promise<BlameEntry[]> {
     const raw = await this.runGit(repoRoot, [
       'blame',
+      '--follow',
+      '--root',
       '--porcelain',
       '--',
       relativeFilePath

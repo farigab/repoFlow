@@ -5,6 +5,8 @@ export interface BlameEntry {
   /** ISO 8601 timestamp */
   committedAt: string;
   commitMessage: string;
+  /** File path as it existed in the blamed commit. */
+  filePath?: string;
   /** 1-based line number in the file */
   lineNumber: number;
 }
