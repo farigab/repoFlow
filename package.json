@@ -241,7 +241,7 @@
     "typecheck": "tsc -p ./tsconfig.json --noEmit",
     "lint": "eslint . --ext .ts,.tsx",
     "pretest": "tsc -p ./tsconfig.json --outDir out-test",
-    "test": "node --test out-test/src/test/buildGraphRows.test.js out-test/src/test/gitParsers.test.js"
+    "test": "node --test out-test/src/test/buildGraphRows.test.js out-test/src/test/gitParsers.test.js out-test/src/test/gitOperationParsers.test.js"
   },
   "repository": {
     "type": "git",

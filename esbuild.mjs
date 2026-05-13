@@ -1,20 +1,25 @@
 import { build } from 'esbuild';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const watch = process.argv.includes('--watch');
+const root = path.dirname(fileURLToPath(import.meta.url));
+const fromRoot = (relativePath) => path.join(root, relativePath).replaceAll('\\', '/');
 
 const sharedOptions = {
   bundle: true,
   sourcemap: watch,
   minify: !watch,
   logLevel: 'info',
-  legalComments: 'none'
+  legalComments: 'none',
+  absWorkingDir: root
 };
 
 watch
   ? await build({
     ...sharedOptions,
-    entryPoints: ['src/extension.ts'],
-    outfile: 'dist/extension.js',
+    entryPoints: [fromRoot('src/extension.ts')],
+    outfile: fromRoot('dist/extension.js'),
     platform: 'node',
     format: 'cjs',
     external: ['vscode'],
@@ -31,8 +36,8 @@ watch
   })
   : await build({
     ...sharedOptions,
-    entryPoints: ['src/extension.ts'],
-    outfile: 'dist/extension.js',
+    entryPoints: [fromRoot('src/extension.ts')],
+    outfile: fromRoot('dist/extension.js'),
     platform: 'node',
     format: 'cjs',
     external: ['vscode']
@@ -41,8 +46,8 @@ watch
 watch
   ? await build({
     ...sharedOptions,
-    entryPoints: ['webview/src/index.tsx'],
-    outdir: 'dist/webview',
+    entryPoints: [fromRoot('webview/src/index.tsx')],
+    outdir: fromRoot('dist/webview'),
     platform: 'browser',
     format: 'esm',
     loader: {
@@ -64,8 +69,8 @@ watch
   })
   : await build({
     ...sharedOptions,
-    entryPoints: ['webview/src/index.tsx'],
-    outdir: 'dist/webview',
+    entryPoints: [fromRoot('webview/src/index.tsx')],
+    outdir: fromRoot('dist/webview'),
     platform: 'browser',
     format: 'esm',
     loader: {

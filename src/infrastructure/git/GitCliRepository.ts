@@ -468,8 +468,8 @@ export class GitCliRepository implements GitRepository {
       this.runGit(repoRoot, ['rev-list', '--left-right', '--count', `${baseRef}...${targetRef}`]),
       this.runGit(repoRoot, ['log', '--date=iso-strict', '--format=%H%x1f%an%x1f%ad%x1f%s%x1e', `${baseRef}..${targetRef}`]),
       this.runGit(repoRoot, ['log', '--date=iso-strict', '--format=%H%x1f%an%x1f%ad%x1f%s%x1e', `${targetRef}..${baseRef}`]),
-      this.runGit(repoRoot, ['diff', '--name-status', '--find-renames', '--find-copies', `${baseRef}...${targetRef}`]),
-      this.runGit(repoRoot, ['diff', '--numstat', '--find-renames', '--find-copies', `${baseRef}...${targetRef}`])
+      this.runGit(repoRoot, ['diff', '--name-status', '--find-renames', '--find-copies', baseRef, targetRef]),
+      this.runGit(repoRoot, ['diff', '--numstat', '--find-renames', '--find-copies', baseRef, targetRef])
     ]);
 
     const [behindRaw = '0', aheadRaw = '0'] = countsRaw.trim().split(/\s+/);
