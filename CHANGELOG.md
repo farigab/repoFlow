@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.1 - 2026-05-13
+
+- **Fixed:** Branch comparison now reports changed files from the selected branch tips, so file lists stay populated even when merge-base comparisons would be empty.
+- **Added:** Changed files in the Compare Branches modal can now be opened directly in the native VS Code side-by-side diff view.
+- **Changed:** The Compare Branches result view now has clearer loading feedback, explicit empty states, summary metrics, and a more polished changed-files list.
+- **Fixed:** The build script now resolves entry points from the repository root, making local builds more reliable across Windows shells and sandboxed environments.
+- **Changed:** Git operation parser tests are now included in the default test script.
+
+## Included commits - 1.3.1
+
+- fix: improve branch comparison changed files and native diffs
+
 ## 1.3.0 - 2026-05-07
 
 - **Fixed:** Opening commit diffs from Git blame now tracks the file path as it existed in the blamed commit and follows renames/root history, avoiding empty or incorrect diffs when the file changed name over time.
