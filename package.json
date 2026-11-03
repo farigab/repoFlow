@@ -16,17 +16,35 @@
   },
   "categories": [
     "SCM Providers",
-    "Visualization",
-    "Other"
+    "Visualization"
   ],
   "keywords": [
     "git",
-    "graph",
-    "commits",
-    "history",
-    "diff",
-    "branches",
-    "worktree"
+    "git client",
+    "git graph",
+    "git history",
+    "git tools",
+    "commit graph",
+    "commit history",
+    "git visualization",
+    "git repository",
+    "repository manager",
+    "repository explorer",
+    "git branches",
+    "branch management",
+    "git diff",
+    "diff viewer",
+    "git stash",
+    "stash manager",
+    "git blame",
+    "git worktree",
+    "worktree manager",
+    "pull request",
+    "pull request manager",
+    "commit viewer",
+    "git operations",
+    "source control",
+    "version control"
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
