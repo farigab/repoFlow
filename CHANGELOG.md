@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.2 - 2026-11-03
+
+- **Added:** Opening the Git graph in a workspace with multiple repositories now prompts you to choose which repository to display.
+- **Fixed:** RepoFlow now detects Git repositories nested inside workspace folders and refreshes the branch list when switching the selected repository.
+
+## Included commits - 1.3.2
+
+- [efa2510](https://github.com/farigab/repoFlow/commit/efa2510) - feat: add support for multiple Git repositories and improve graph view handling
+
 ## 1.3.1 - 2026-05-13
 
 - **Fixed:** Branch comparison now reports changed files from the selected branch tips, so file lists stay populated even when merge-base comparisons would be empty.
