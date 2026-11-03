@@ -85,7 +85,7 @@ async function pickRepoAction(
     }).then(() => undefined)),
     compareBranches: async () => pickCompareBranches(repository),
     undoLastOperation: async () => pickUndoOperation(repository, onRepositoryChanged),
-    openGraph: async () => graphViewProvider.openOrReveal(),
+    openGraph: async () => { await graphViewProvider.openOrReveal(); },
     createBranch: async () => vscode.commands.executeCommand('repoFlow.createBranch'),
   };
 
@@ -216,7 +216,10 @@ export function registerRepoCommands(
 ): void {
   subscriptions.push(
     vscode.commands.registerCommand('repoFlow.openView', () => {
-      graphViewProvider.openOrReveal();
+      void graphViewProvider.openOrReveal().catch((error: unknown) => {
+        const msg = error instanceof Error ? error.message : String(error);
+        void vscode.window.showErrorMessage(`RepoFlow: ${msg}`);
+      });
     }),
     vscode.commands.registerCommand('repoFlow.showRepoActions', async () => {
       try {
@@ -301,7 +304,10 @@ export function registerRepoCommands(
     }),
     // Internal command — invoked from blame hover command URI
     vscode.commands.registerCommand('repoFlow.revealCommit', (commitHash: string) => {
-      graphViewProvider.openAndRevealCommit(commitHash);
+      void graphViewProvider.openAndRevealCommit(commitHash).catch((error: unknown) => {
+        const msg = error instanceof Error ? error.message : String(error);
+        void vscode.window.showErrorMessage(`RepoFlow: ${msg}`);
+      });
     })
   );
 }

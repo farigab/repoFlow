@@ -1,3 +1,4 @@
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { CommitAnalysisService } from '../../application/analysis/CommitAnalysisService';
 import type { GitFetchCoordinator } from '../../application/fetch/GitFetchCoordinator';
@@ -37,7 +38,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     fetchCoordinator: GitFetchCoordinator,
     private readonly output: vscode.OutputChannel,
     private readonly repoStatusBar?: vscode.StatusBarItem,
-    onRepositoryChanged?: () => void
+    private readonly onRepositoryChanged?: () => void
   ) {
     const postMessage = (message: ExtensionToWebviewMessage) => this.postMessage(message);
     const refresh = () => this.refresh();
@@ -47,7 +48,7 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
       output,
       postMessage,
       refresh,
-      onRepositoryChanged
+      onRepositoryChanged: this.onRepositoryChanged
     });
 
     this.messageHandlers = {
@@ -116,14 +117,45 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     void this.refresh();
   }
 
-  public openOrReveal(): void {
+  public async openOrReveal(): Promise<boolean> {
+    const roots = await this.repository.getRepositoryRoots();
+    if (roots.length === 0) {
+      throw new Error('Nenhum repositório Git foi encontrado no workspace atual.');
+    }
+
+    let selectedRoot = roots[0]!;
+    if (roots.length > 1) {
+      const items = roots.map((root) => {
+        const folderName = root.split(/[\\/]/).filter(Boolean).pop() ?? root;
+        const relativePath = vscode.workspace.workspaceFolders
+          ?.map((folder) => {
+            const workspacePath = folder.uri.fsPath;
+            return root.toLowerCase().startsWith(`${workspacePath.toLowerCase()}${path.sep}`)
+              ? path.relative(workspacePath, root)
+              : undefined;
+          })
+          .find((value) => value !== undefined);
+        return { label: folderName, description: relativePath ?? root, repoRoot: root };
+      });
+      const choice = await vscode.window.showQuickPick(items, {
+        title: 'RepoFlow — Choose repository',
+        placeHolder: 'Select which repository to show in the graph'
+      });
+      if (!choice) {
+        return false;
+      }
+      selectedRoot = choice.repoRoot;
+    }
+
+    await this.repository.setSelectedRepositoryRoot(selectedRoot);
+    this.onRepositoryChanged?.();
     this.selectedCommitHash = undefined;
     this.filters = { includeRemotes: true, limit: 200 };
 
     if (this.currentPanel) {
       this.currentPanel.reveal(vscode.ViewColumn.One);
       void this.refresh();
-      return;
+      return true;
     }
 
     const panel = vscode.window.createWebviewPanel(
@@ -163,13 +195,18 @@ export class GitGraphViewProvider implements vscode.WebviewViewProvider {
     }, undefined, this.panelDisposables);
 
     this.currentPanel = panel;
+    void this.refresh();
+    return true;
   }
 
-  public openAndRevealCommit(commitHash: string): void {
+  public async openAndRevealCommit(commitHash: string): Promise<void> {
     const trustedCommitHash = assertCommitHash(commitHash);
-    this.openOrReveal();
+    if (!await this.openOrReveal()) {
+      return;
+    }
     this.selectedCommitHash = trustedCommitHash;
     this.pendingRevealHash = trustedCommitHash;
+    void this.refresh();
   }
 
   public async refresh(): Promise<void> {

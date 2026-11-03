@@ -10,6 +10,8 @@
 
 Visualize your entire commit history as a branching graph. Each node shows the commit hash, author, date and refs (local branches, remote branches and tags).
 
+If the opened workspace contains multiple Git repositories, RepoFlow asks which repository to show when you open the graph.
+
 ### Native Diff Integration
 
 Click any file in a commit to open a native VS Code diff tab, labeled as `file (commitA ↔ commitB)`. No external tools required.
