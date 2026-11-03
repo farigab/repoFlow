@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.3 - 2026-11-03
+
+- **Changed:** The extension's display name is now Git Graph Explorer.
+
 ## 1.3.2 - 2026-11-03
 
 - **Added:** Opening the Git graph in a workspace with multiple repositories now prompts you to choose which repository to display.
