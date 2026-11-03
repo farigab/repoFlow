@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseBranchList, parseCommitLog, parseWorkingTreeStatus } from '../infrastructure/git/GitParsers';
+import { parseBlameOutput, parseBranchList, parseCommitLog, parseWorkingTreeStatus } from '../infrastructure/git/GitParsers';
 
 test('parseCommitLog reads commit metadata and refs', () => {
   const raw = 'abc12345\u001fdef67890 ghi11111\u001fJane Doe\u001fjane@example.com\u001f2026-04-14T12:30:00Z\u001ffeat: graph\u001fHEAD -> refs/heads/main, refs/remotes/origin/main\u001e';
@@ -55,4 +55,22 @@ test('parseBranchList detects remote refs independently of remote name', () => {
 
   assert.ok(originFeature);
   assert.equal(originFeature?.remote, true);
+});
+
+test('parseBlameOutput keeps the historical filename for blamed lines', () => {
+  const raw = [
+    '1234567890abcdef1234567890abcdef12345678 1 1 1',
+    'author Jane Doe',
+    'author-mail <jane@example.com>',
+    'author-time 1715083200',
+    'summary add config',
+    'filename src/legacy/config.ts',
+    '\tconst value = 1;'
+  ].join('\n');
+
+  const entries = parseBlameOutput(raw);
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0]?.filePath, 'src/legacy/config.ts');
+  assert.equal(entries[0]?.lineNumber, 1);
 });

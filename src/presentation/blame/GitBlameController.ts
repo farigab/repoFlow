@@ -107,6 +107,7 @@ interface BlameDiffCommandArgs {
   repoRoot: string;
   filePath: string;
   commitHash: string;
+  blamedFilePath?: string;
 }
 
 export class GitBlameController implements vscode.Disposable {
@@ -127,7 +128,7 @@ export class GitBlameController implements vscode.Disposable {
    */
   private readonly activeDecoration = new Map<
     string,
-    { line: number; entry: BlameEntry; config: RepoGitConfig; repoRoot: string; filePath: string }
+    { line: number; entry: BlameEntry; config: RepoGitConfig; repoRoot: string; filePath: string; blamedFilePath: string }
   >();
 
   private currentEditor: vscode.TextEditor | undefined;
@@ -316,7 +317,14 @@ export class GitBlameController implements vscode.Disposable {
     const lineLength = editor.document.lineAt(line).text.length;
     const range = new vscode.Range(line, lineLength, line, lineLength);
 
-    this.activeDecoration.set(editor.document.uri.fsPath, { line, entry, config, repoRoot, filePath });
+    this.activeDecoration.set(editor.document.uri.fsPath, {
+      line,
+      entry,
+      config,
+      repoRoot,
+      filePath,
+      blamedFilePath: entry.filePath || filePath
+    });
 
     editor.setDecorations(BLAME_DECORATION, [
       {
@@ -350,12 +358,12 @@ export class GitBlameController implements vscode.Disposable {
       return undefined;
     }
 
-    const { entry, config, repoRoot, filePath } = active;
+    const { entry, config, repoRoot, filePath, blamedFilePath } = active;
     const stats = this.statsCache.get(entry.commitHash);
     const isUncommitted = entry.commitHash.startsWith(UNCOMMITTED_HASH_PREFIX);
 
     const statsLine = this.buildStatsLine(entry, stats);
-    const linksLine = isUncommitted ? '' : this.buildLinksLine(entry, config, repoRoot, filePath);
+    const linksLine = isUncommitted ? '' : this.buildLinksLine(entry, config, repoRoot, filePath, blamedFilePath);
     const headerLine = isUncommitted
       ? '$(edit) **Uncommitted Changes**'
       : `\`${entry.commitHash.slice(0, 7)}\` **${escapeMarkdown(entry.commitMessage)}**`;
@@ -390,7 +398,13 @@ export class GitBlameController implements vscode.Disposable {
     return new vscode.Hover(md, range);
   }
 
-  private buildLinksLine(entry: BlameEntry, config: RepoGitConfig, repoRoot: string, filePath: string): string {
+  private buildLinksLine(
+    entry: BlameEntry,
+    config: RepoGitConfig,
+    repoRoot: string,
+    filePath: string,
+    blamedFilePath: string
+  ): string {
     const ghUrl = buildGitHubCommitUrl(config.remotes, entry.commitHash);
     const ghPart = ghUrl ? `[$(link-external) Open on GitHub](${ghUrl})` : '';
 
@@ -399,7 +413,8 @@ export class GitBlameController implements vscode.Disposable {
     const diffArgs = encodeURIComponent(JSON.stringify([{
       repoRoot,
       filePath,
-      commitHash: entry.commitHash
+      commitHash: entry.commitHash,
+      blamedFilePath
     } satisfies BlameDiffCommandArgs]));
     const diffPart = `[$(diff) Open Commit Diff](command:repoFlow.openBlameCommitDiff?${diffArgs})`;
 
@@ -452,20 +467,23 @@ export class GitBlameController implements vscode.Disposable {
   private async buildCommitDiffRequest(args: unknown): Promise<DiffRequest> {
     const parsed = this.parseBlameDiffCommandArgs(args);
     const detail = await this.repository.getCommitDetail(parsed.repoRoot, parsed.commitHash);
-    const changedFile = this.findChangedFileForBlame(detail.files, parsed.filePath);
+    const blamedFilePath = parsed.blamedFilePath ?? parsed.filePath;
+    const changedFile =
+      this.findChangedFileForBlame(detail.files, blamedFilePath)
+      ?? this.findChangedFileForBlame(detail.files, parsed.filePath);
 
     return {
       repoRoot: parsed.repoRoot,
       commitHash: parsed.commitHash,
       parentHash: detail.parentHashes[0],
-      filePath: changedFile?.path ?? parsed.filePath,
+      filePath: changedFile?.path ?? blamedFilePath,
       originalPath: changedFile?.originalPath
     };
   }
 
   private parseBlameDiffCommandArgs(args: unknown): BlameDiffCommandArgs {
     if (!args || typeof args !== 'object') {
-      throw new Error('Invalid blame diff request.');
+      throw new TypeError('Invalid blame diff request.');
     }
 
     const candidate = args as Partial<BlameDiffCommandArgs>;
@@ -474,13 +492,16 @@ export class GitBlameController implements vscode.Disposable {
       typeof candidate.filePath !== 'string' ||
       typeof candidate.commitHash !== 'string'
     ) {
-      throw new Error('Invalid blame diff request.');
+      throw new TypeError('Invalid blame diff request.');
     }
 
     return {
       repoRoot: assertSafeAbsoluteFsPath(candidate.repoRoot, 'repository root'),
       filePath: assertSafeRelativeGitPath(candidate.filePath),
-      commitHash: assertCommitHash(candidate.commitHash)
+      commitHash: assertCommitHash(candidate.commitHash),
+      blamedFilePath: candidate.blamedFilePath
+        ? assertSafeRelativeGitPath(candidate.blamedFilePath, 'blamed file path')
+        : undefined
     };
   }
 

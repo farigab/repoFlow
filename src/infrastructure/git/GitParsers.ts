@@ -282,6 +282,7 @@ function readBlameMeta(lines: string[], startIndex: number, hash: string): { met
   let authorEmail = '';
   let committedAt = '';
   let commitMessage = '';
+  let filePath = '';
 
   let i = startIndex;
   while (i < lines.length && !(lines[i] ?? '').startsWith('\t')) {
@@ -295,11 +296,13 @@ function readBlameMeta(lines: string[], startIndex: number, hash: string): { met
       committedAt = Number.isNaN(unixSec) ? '' : new Date(unixSec * 1000).toISOString();
     } else if (meta.startsWith('summary ')) {
       commitMessage = meta.slice(8);
+    } else if (meta.startsWith('filename ')) {
+      filePath = meta.slice(9);
     }
     i++;
   }
 
-  return { meta: { commitHash: hash, authorName, authorEmail, committedAt, commitMessage }, nextIndex: i };
+  return { meta: { commitHash: hash, authorName, authorEmail, committedAt, commitMessage, filePath }, nextIndex: i };
 }
 
 /**

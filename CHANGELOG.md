@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.3.2 - 2026-11-03
+
+- **Added:** Opening the Git graph in a workspace with multiple repositories now prompts you to choose which repository to display.
+- **Fixed:** RepoFlow now detects Git repositories nested inside workspace folders and refreshes the branch list when switching the selected repository.
+
+## Included commits - 1.3.2
+
+- [efa2510](https://github.com/farigab/repoFlow/commit/efa2510) - feat: add support for multiple Git repositories and improve graph view handling
+
+## 1.3.1 - 2026-05-13
+
+- **Fixed:** Branch comparison now reports changed files from the selected branch tips, so file lists stay populated even when merge-base comparisons would be empty.
+- **Added:** Changed files in the Compare Branches modal can now be opened directly in the native VS Code side-by-side diff view.
+- **Changed:** The Compare Branches result view now has clearer loading feedback, explicit empty states, summary metrics, and a more polished changed-files list.
+- **Fixed:** The build script now resolves entry points from the repository root, making local builds more reliable across Windows shells and sandboxed environments.
+- **Changed:** Git operation parser tests are now included in the default test script.
+
+## Included commits - 1.3.1
+
+- fix: improve branch comparison changed files and native diffs
+
+## 1.3.0 - 2026-05-07
+
+- **Fixed:** Opening commit diffs from Git blame now tracks the file path as it existed in the blamed commit and follows renames/root history, avoiding empty or incorrect diffs when the file changed name over time.
+- **Changed:** Added test coverage for blame parsing so historical filenames from `git blame --porcelain` are preserved and used by the diff flow.
+
+## Included commits - 1.3.0
+
+- [4cd51ea](https://github.com/farigab/repoFlow/commit/4cd51ea) - feat: enhance blame functionality with file path tracking and update tests
+
 ## 1.2.9 - 2026-05-07
 
 - **Changed:** CommitDetails component was refactored for improved tab navigation and a cleaner UI layout.
@@ -10,7 +40,7 @@
 - [91dac99](https://github.com/farigab/repoFlow/commit/91dac99) - feat: enhance resizable layout with top and bottom adjustments for improved responsiveness
 - [e039c3f](https://github.com/farigab/repoFlow/commit/e039c3f) - feat: refactor CommitDetails component for improved tab navigation and UI layout
 
-## 1.2.8 - 2026-05-02
+## 1.2.8 - 2026-05-07
 
 - **Added:** Commit Details now includes on-demand AI commit analysis powered by GitHub Copilot models, with executive/technical review modes, analysis caching, diff truncation handling, and inline actions to copy the result or open it as a commit note.
 - **Added:** RepoFlow now lets users choose the model used for commit analysis, including an `Auto` option and an in-app model picker modal that shows provider, family, version, description, and the currently selected model.

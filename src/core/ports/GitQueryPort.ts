@@ -13,7 +13,9 @@ import type {
 
 export interface GitQueryPort {
   clearTransientCaches(): void;
+  getRepositoryRoots(): Promise<string[]>;
   resolveRepositoryRoot(preferredPath?: string): Promise<string>;
+  setSelectedRepositoryRoot(repoRoot: string): Promise<void>;
   getGraph(filters: GraphFilters): Promise<GraphSnapshot>;
   getCommitDetail(repoRoot: string, commitHash: string): Promise<CommitDetail>;
   getCommitPatch(repoRoot: string, commitHash: string): Promise<string>;

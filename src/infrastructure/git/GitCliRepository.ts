@@ -45,11 +45,24 @@ import {
 
 const HASH_SEARCH_PATTERN = /^[0-9a-f]{4,40}$/i;
 
+interface GitApiRepository {
+  rootUri: vscode.Uri;
+}
+
+interface GitExtensionApi {
+  repositories: GitApiRepository[];
+}
+
+interface GitExtensionExports {
+  getAPI(version: 1): GitExtensionApi;
+}
+
 export class GitCliRepository implements GitRepository {
   private readonly graphCache = new GitCache<GraphSnapshot>(3_000);
   private readonly graphInFlight = new Map<string, Promise<GraphSnapshot>>();
   private readonly gitRunner: GitCommandRunner;
   private graphCacheVersion = 0;
+  private selectedRepoRoot?: string;
 
   public constructor(
     private readonly output: vscode.OutputChannel,
@@ -68,6 +81,35 @@ export class GitCliRepository implements GitRepository {
     this.graphInFlight.clear();
   }
 
+  public async getRepositoryRoots(): Promise<string[]> {
+    const candidates = new Set<string>();
+    const gitExtension = vscode.extensions.getExtension<GitExtensionExports>('vscode.git');
+
+    if (gitExtension) {
+      const exports = gitExtension.isActive ? gitExtension.exports : await gitExtension.activate();
+      for (const repository of exports.getAPI(1).repositories) {
+        candidates.add(repository.rootUri.fsPath);
+      }
+    }
+
+    for (const workspaceFolder of vscode.workspace.workspaceFolders ?? []) {
+      candidates.add(workspaceFolder.uri.fsPath);
+    }
+
+    const roots = new Map<string, string>();
+    for (const candidate of candidates) {
+      try {
+        const root = (await this.runGit(candidate, ['rev-parse', '--show-toplevel'])).trim();
+        const key = process.platform === 'win32' ? root.toLowerCase() : root;
+        roots.set(key, root);
+      } catch {
+        continue;
+      }
+    }
+
+    return [...roots.values()];
+  }
+
   public async resolveRepositoryRoot(preferredPath?: string): Promise<string> {
     const candidates = new Set<string>();
 
@@ -75,8 +117,12 @@ export class GitCliRepository implements GitRepository {
       candidates.add(preferredPath);
     }
 
-    for (const workspaceFolder of vscode.workspace.workspaceFolders ?? []) {
-      candidates.add(workspaceFolder.uri.fsPath);
+    if (this.selectedRepoRoot) {
+      candidates.add(this.selectedRepoRoot);
+    }
+
+    for (const root of await this.getRepositoryRoots()) {
+      candidates.add(root);
     }
 
     for (const candidate of candidates) {
@@ -89,6 +135,10 @@ export class GitCliRepository implements GitRepository {
     }
 
     throw new Error('Nenhum repositório Git foi encontrado no workspace atual.');
+  }
+
+  public async setSelectedRepositoryRoot(repoRoot: string): Promise<void> {
+    this.selectedRepoRoot = await this.resolveRepositoryRoot(repoRoot);
   }
 
   public async getGraph(filters: GraphFilters): Promise<GraphSnapshot> {
@@ -468,8 +518,8 @@ export class GitCliRepository implements GitRepository {
       this.runGit(repoRoot, ['rev-list', '--left-right', '--count', `${baseRef}...${targetRef}`]),
       this.runGit(repoRoot, ['log', '--date=iso-strict', '--format=%H%x1f%an%x1f%ad%x1f%s%x1e', `${baseRef}..${targetRef}`]),
       this.runGit(repoRoot, ['log', '--date=iso-strict', '--format=%H%x1f%an%x1f%ad%x1f%s%x1e', `${targetRef}..${baseRef}`]),
-      this.runGit(repoRoot, ['diff', '--name-status', '--find-renames', '--find-copies', `${baseRef}...${targetRef}`]),
-      this.runGit(repoRoot, ['diff', '--numstat', '--find-renames', '--find-copies', `${baseRef}...${targetRef}`])
+      this.runGit(repoRoot, ['diff', '--name-status', '--find-renames', '--find-copies', baseRef, targetRef]),
+      this.runGit(repoRoot, ['diff', '--numstat', '--find-renames', '--find-copies', baseRef, targetRef])
     ]);
 
     const [behindRaw = '0', aheadRaw = '0'] = countsRaw.trim().split(/\s+/);
@@ -707,6 +757,8 @@ export class GitCliRepository implements GitRepository {
   public async getBlame(repoRoot: string, relativeFilePath: string): Promise<BlameEntry[]> {
     const raw = await this.runGit(repoRoot, [
       'blame',
+      '--follow',
+      '--root',
       '--porcelain',
       '--',
       relativeFilePath
